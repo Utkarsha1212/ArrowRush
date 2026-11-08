@@ -42,6 +42,8 @@ public class TabCube : MonoBehaviour
     private Mesh arrowMesh;
     private static Material sharedArrowMaterial;
     private Renderer cubeRenderer;
+    private TrailRenderer exitTrail;
+    private static Material sharedTrailMaterial;
     private Coroutine hintRoutine;
     private static readonly int OutlineColorId = Shader.PropertyToID("_OutlineColor");
 
@@ -64,6 +66,7 @@ public class TabCube : MonoBehaviour
         direction = ToCardinalDirection(direction);
         cubeRenderer = GetComponent<Renderer>();
         CreateDirectionMarker();
+        CreateExitTrail();
     }
 
     private void OnEnable()
@@ -107,11 +110,17 @@ public class TabCube : MonoBehaviour
         }
 
         Vector3 target = start + moveDirection * clearMoveDistance;
+        if (exitTrail != null)
+        {
+            exitTrail.Clear();
+            exitTrail.emitting = true;
+        }
         movementTween = transform.DOMove(target, GetTweenDuration(clearMoveDistance))
             .SetEase(Ease.InQuad)
             .OnComplete(() =>
             {
                 CubeExited?.Invoke(this);
+                ReleaseExitTrail();
                 activeMover = null;
                 movementTween = null;
                 Destroy(gameObject);
@@ -286,6 +295,41 @@ public class TabCube : MonoBehaviour
         arrowRenderer.shadowCastingMode = ShadowCastingMode.Off;
         arrowRenderer.receiveShadows = false;
         UpdateDirectionMarker();
+    }
+
+    private void CreateExitTrail()
+    {
+        GameObject trailObject = new GameObject("ExitTrail");
+        trailObject.transform.SetParent(transform, false);
+        trailObject.transform.localPosition = Vector3.zero;
+        exitTrail = trailObject.AddComponent<TrailRenderer>();
+        exitTrail.time = 0.28f;
+        exitTrail.startWidth = 0.34f;
+        exitTrail.endWidth = 0f;
+        exitTrail.minVertexDistance = 0.08f;
+        exitTrail.alignment = LineAlignment.View;
+        exitTrail.emitting = false;
+        exitTrail.shadowCastingMode = ShadowCastingMode.Off;
+        exitTrail.receiveShadows = false;
+        exitTrail.startColor = new Color(0.18f, 0.83f, 1f, 0.88f);
+        exitTrail.endColor = new Color(0.18f, 0.83f, 1f, 0f);
+        if (sharedTrailMaterial == null)
+        {
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("Unlit/Color");
+            if (shader != null) sharedTrailMaterial = new Material(shader);
+        }
+        if (sharedTrailMaterial != null) exitTrail.sharedMaterial = sharedTrailMaterial;
+    }
+
+    private void ReleaseExitTrail()
+    {
+        if (exitTrail == null) return;
+        TrailRenderer trail = exitTrail;
+        exitTrail = null;
+        trail.emitting = false;
+        trail.transform.SetParent(null, true);
+        Destroy(trail.gameObject, trail.time);
     }
 
     private static Material GetArrowMaterial()

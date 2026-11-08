@@ -41,6 +41,7 @@ public class LevelPuzzleGenerator : MonoBehaviour
 
     private void Start()
     {
+        levelNumber = Mathf.Clamp(PlayerPrefs.GetInt("ArrowRush.SelectedLevel", levelNumber), 1, Mathf.Max(1, difficultyCapLevel));
         GeneratePuzzle();
     }
 
@@ -241,6 +242,8 @@ public class LevelPuzzleGenerator : MonoBehaviour
     public void LoadNextPuzzle()
     {
         levelNumber++;
+        PlayerPrefs.SetInt("ArrowRush.SelectedLevel", levelNumber);
+        PlayerPrefs.Save();
         GeneratePuzzle();
     }
 
