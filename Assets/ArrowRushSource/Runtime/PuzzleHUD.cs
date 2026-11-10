@@ -8,17 +8,14 @@ using System.Collections;
 /// <summary>Runtime HUD for the arrow puzzle: level, taps, feedback, and hints.</summary>
 public class PuzzleHUD : MonoBehaviour
 {
-    private static readonly Color Navy = new Color(0.055f, 0.075f, 0.17f, 0.92f);
-    private static readonly Color Cyan = new Color(0.12f, 0.68f, 0.96f, 1f);
-    private static readonly Color Green = new Color(0.06f, 0.80f, 0.23f, 1f);
-
-    private Text levelText;
-    private Text cubesText;
-    private Text moveText;
-    private Text timerText;
-    private Text statusText;
-    private Text buttonLabel;
-    private Button actionButton;
+    [SerializeField] private Canvas uiCanvas;
+    [SerializeField] private Text levelText;
+    [SerializeField] private Text cubesText;
+    [SerializeField] private Text moveText;
+    [SerializeField] private Text timerText;
+    [SerializeField] private Text statusText;
+    [SerializeField] private Text buttonLabel;
+    [SerializeField] private Button actionButton;
     private Action nextLevelAction;
     private Action retryLevelAction;
     private int moveCount;
@@ -28,12 +25,15 @@ public class PuzzleHUD : MonoBehaviour
     private int currentLevel;
     private bool levelActive;
     private bool paused;
-    private GameObject pausePanel;
-    private GameObject resultPanel;
-    private Text resultTitle;
-    private Text resultDetails;
-    private Image[] resultStars;
-    private static Sprite[] buttonSprites;
+    private float levelTimeLimit;
+    private int completionStarsEarned;
+    private int lastCountdownSecond = -1;
+    private Vector3 timerTextInitialScale;
+    [SerializeField] private GameObject pausePanel;
+    [SerializeField] private GameObject resultPanel;
+    [SerializeField] private Text resultTitle;
+    [SerializeField] private Text resultDetails;
+    [SerializeField] private Image[] resultStars;
 
     private void OnEnable()
     {
@@ -49,7 +49,14 @@ public class PuzzleHUD : MonoBehaviour
 
     private void Awake()
     {
-        BuildCanvas();
+        if (uiCanvas == null)
+        {
+            Debug.LogError("ArrowRush level Canvas is missing from Level.unity.", this);
+            return;
+        }
+        if (timerText != null)
+            timerTextInitialScale = timerText.transform.localScale;
+        BindSceneButtons();
     }
 
     public void Initialize(int level, int cubeCount, float timeLimit, Action onNextLevel, Action onRetryLevel)
@@ -58,29 +65,31 @@ public class PuzzleHUD : MonoBehaviour
         currentLevel = Mathf.Max(1, level);
         cubesRemaining = cubeCount;
         timeRemaining = Mathf.Max(1f, timeLimit);
+        levelTimeLimit = timeRemaining;
         displayedSeconds = -1;
+        lastCountdownSecond = -1;
+        completionStarsEarned = 0;
         levelActive = true;
         paused = false;
         if (pausePanel != null) pausePanel.SetActive(false);
         if (resultPanel != null) resultPanel.SetActive(false);
+        StarSystem.HideStars(resultStars);
         nextLevelAction = onNextLevel;
         retryLevelAction = onRetryLevel;
         TabCube.SetInputLocked(false);
-        if (levelText != null)
-            levelText.text = $"LEVEL  {Mathf.Max(1, level)}";
+        if (levelText != null) levelText.text = $"LEVEL  {currentLevel}";
         UpdateCubesText();
         UpdateMoveText();
         UpdateTimerText();
         SetStatus("Tap a cube whose arrow has a clear path.");
         if (actionButton != null)
         {
-            actionButton.interactable = true;
+            actionButton.interactable = PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) == 1;
             actionButton.onClick.RemoveAllListeners();
             actionButton.onClick.AddListener(ShowHint);
             actionButton.onClick.AddListener(() => ArrowRushAudio.Instance?.Play("click"));
         }
-        if (buttonLabel != null)
-            buttonLabel.text = "HINT  •  SHOW A CLEAR CUBE";
+        RefreshHintButton();
     }
 
     private void Update()
@@ -94,169 +103,24 @@ public class PuzzleHUD : MonoBehaviour
             HandleTimeExpired();
     }
 
-    private void BuildCanvas()
+    private void BindSceneButtons()
     {
-        GameObject canvasObject = new GameObject("Arrow Puzzle HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        Canvas canvas = canvasObject.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 50;
-
-        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
-        scaler.matchWidthOrHeight = 0.5f;
-
-        RectTransform root = canvasObject.GetComponent<RectTransform>();
-        root.anchorMin = Vector2.zero;
-        root.anchorMax = Vector2.one;
-        root.offsetMin = Vector2.zero;
-        root.offsetMax = Vector2.zero;
-
-        GameObject panelObject = CreateUIObject("Top Panel", root);
-        RectTransform panel = panelObject.GetComponent<RectTransform>();
-        SetAnchoredRect(panel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(930f, 205f));
-        Image panelImage = panelObject.AddComponent<Image>();
-        panelImage.color = Navy;
-        panelImage.raycastTarget = false;
-
-        levelText = CreateText("Level", panel, 34, TextAnchor.MiddleLeft, Color.white);
-        SetAnchoredRect(levelText.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(38f, 10f), new Vector2(260f, 74f));
-
-        cubesText = CreateText("Cubes Remaining", panel, 28, TextAnchor.MiddleCenter, new Color(0.55f, 0.83f, 1f));
-        SetAnchoredRect(cubesText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(280f, 74f));
-
-        moveText = CreateText("Moves", panel, 32, TextAnchor.MiddleRight, Color.white);
-        moveText.fontSize = 22;
-        SetAnchoredRect(moveText.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-28f, 10f), new Vector2(160f, 74f));
-
-        timerText = CreateText("Level Timer", panel, 25, TextAnchor.MiddleCenter, Color.white);
-        SetAnchoredRect(timerText.rectTransform, new Vector2(0.68f, 0.5f), new Vector2(0.68f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(150f, 74f));
-
-        cubesText.rectTransform.anchorMin = new Vector2(0.45f, 0.5f);
-        cubesText.rectTransform.anchorMax = new Vector2(0.45f, 0.5f);
-        cubesText.rectTransform.sizeDelta = new Vector2(220f, 74f);
-
-        statusText = CreateText("Status", panel, 24, TextAnchor.MiddleCenter, new Color(0.79f, 0.86f, 1f));
-        SetAnchoredRect(statusText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 30f), new Vector2(850f, 62f));
-
-        GameObject buttonObject = CreateUIObject("Hint Button", root);
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-        SetAnchoredRect(buttonRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(360f, 100f));
-        Image buttonImage = buttonObject.AddComponent<Image>();
-        buttonImage.sprite = GetButtonSprite("MenuUI_6");
-        buttonImage.color = Color.white;
-        actionButton = buttonObject.AddComponent<Button>();
-        actionButton.targetGraphic = buttonImage;
-        ColorBlock colors = actionButton.colors;
-        colors.highlightedColor = new Color(0.3f, 0.8f, 1f);
-        colors.pressedColor = new Color(0.06f, 0.48f, 0.76f);
-        actionButton.colors = colors;
-
-        buttonLabel = CreateText("Hint Label", buttonRect, 27, TextAnchor.MiddleCenter, Color.white);
-        buttonLabel.text = "HINT  •  SHOW A CLEAR CUBE";
-        buttonLabel.fontStyle = FontStyle.Bold;
-        buttonLabel.raycastTarget = false;
-        SetAnchoredRect(buttonLabel.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-
-        GameObject pauseObject = CreateUIObject("Pause Button", root);
-        RectTransform pauseRect = pauseObject.GetComponent<RectTransform>();
-        SetAnchoredRect(pauseRect, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-70f, -260f), new Vector2(120f, 120f));
-        Image pauseImage = pauseObject.AddComponent<Image>();
-        pauseImage.sprite = GetButtonSprite("MenuUI_7");
-        pauseImage.color = Color.white;
-        Button pauseButton = pauseObject.AddComponent<Button>();
-        pauseButton.targetGraphic = pauseImage;
-        pauseButton.onClick.AddListener(ShowPausePanel);
-        Text pauseLabel = CreateText("Pause Label", pauseRect, 56, TextAnchor.MiddleCenter, Color.white);
-        pauseLabel.text = "Ⅱ";
-        SetAnchoredRect(pauseLabel.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-
-        pausePanel = CreateUIObject("Pause Panel", root);
-        RectTransform pausePanelRect = pausePanel.GetComponent<RectTransform>();
-        SetAnchoredRect(pausePanelRect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-        Image pauseShade = pausePanel.AddComponent<Image>();
-        pauseShade.color = new Color(0.015f, 0.035f, 0.12f, 0.78f);
-        GameObject pauseCard = CreateUIObject("Pause Card", pausePanelRect);
-        RectTransform pauseCardRect = pauseCard.GetComponent<RectTransform>();
-        SetAnchoredRect(pauseCardRect, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(760f, 680f));
-        Image cardImage = pauseCard.AddComponent<Image>();
-        cardImage.color = Navy;
-        Text pauseTitle = CreateText("Pause Title", pauseCardRect, 58, TextAnchor.MiddleCenter, Color.white);
-        pauseTitle.text = "PAUSED";
-        SetAnchoredRect(pauseTitle.rectTransform, new Vector2(.5f, .82f), new Vector2(.5f, .82f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(650f, 110f));
-        CreatePauseAction("RESUME", Green, pauseCardRect, .62f, ResumeGame);
-        CreatePauseAction("RESTART", Cyan, pauseCardRect, .42f, () => retryLevelAction?.Invoke());
-        CreatePauseAction("HOME", new Color(.96f, .10f, .39f), pauseCardRect, .22f, () => SceneManager.LoadScene("Menu"));
-        pausePanel.SetActive(false);
-        BuildResultPanel(root);
-    }
-
-    private void CreatePauseAction(string label, Color color, Transform parent, float y, Action action)
-    {
-        GameObject buttonObject = CreateUIObject(label + " Button", parent);
-        RectTransform rect = buttonObject.GetComponent<RectTransform>();
-        SetAnchoredRect(rect, new Vector2(.5f, y), new Vector2(.5f, y), new Vector2(.5f, .5f), Vector2.zero, new Vector2(520f, 105f));
-        Image image = buttonObject.AddComponent<Image>();
-        image.sprite = GetButtonSprite(color == Cyan ? "MenuUI_6" : color.r > .8f ? "MenuUI_7" : "MenuUI_5");
-        image.color = Color.white;
-        Button button = buttonObject.AddComponent<Button>(); button.targetGraphic = image;
-        button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); action?.Invoke(); });
-        Text text = CreateText(label + " Label", rect, 36, TextAnchor.MiddleCenter, Color.white);
-        text.text = label; text.fontStyle = FontStyle.Bold;
-        SetAnchoredRect(text.rectTransform, Vector2.zero, Vector2.one, new Vector2(.5f, .5f), Vector2.zero, Vector2.zero);
-    }
-
-    private void BuildResultPanel(RectTransform root)
-    {
-        resultPanel = CreateUIObject("Level Result Panel", root);
-        RectTransform overlayRect = resultPanel.GetComponent<RectTransform>();
-        SetAnchoredRect(overlayRect, Vector2.zero, Vector2.one, new Vector2(.5f, .5f), Vector2.zero, Vector2.zero);
-        Image shade = resultPanel.AddComponent<Image>(); shade.color = new Color(.015f, .03f, .12f, .82f);
-        GameObject card = CreateUIObject("Result Card", overlayRect);
-        RectTransform cardRect = card.GetComponent<RectTransform>();
-        SetAnchoredRect(cardRect, new Vector2(.5f,.5f), new Vector2(.5f,.5f), new Vector2(.5f,.5f), Vector2.zero, new Vector2(790f, 980f));
-        Image cardImage = card.AddComponent<Image>();
-        cardImage.sprite = GetSprite("BrickBreakoutPuzzle/Sprites/UI/LevelCompletionUI", "LevelCompletionUI_0");
-        cardImage.color = Color.white;
-        resultTitle = CreateText("Result Title", cardRect, 58, TextAnchor.MiddleCenter, new Color(.05f,.20f,.55f));
-        SetAnchoredRect(resultTitle.rectTransform, new Vector2(.5f,.82f), new Vector2(.5f,.82f), new Vector2(.5f,.5f), Vector2.zero, new Vector2(670f,120f));
-        resultDetails = CreateText("Result Details", cardRect, 34, TextAnchor.MiddleCenter, new Color(.08f,.13f,.3f));
-        SetAnchoredRect(resultDetails.rectTransform, new Vector2(.5f,.61f), new Vector2(.5f,.61f), new Vector2(.5f,.5f), Vector2.zero, new Vector2(650f,170f));
-        resultStars = new Image[3];
-        for (int i = 0; i < resultStars.Length; i++)
+        Button[] buttons = uiCanvas.GetComponentsInChildren<Button>(true);
+        foreach (Button button in buttons)
         {
-            GameObject starObject = CreateUIObject("Completion Star " + (i + 1), cardRect);
-            RectTransform starRect = starObject.GetComponent<RectTransform>();
-            SetAnchoredRect(starRect, new Vector2(.5f, .44f), new Vector2(.5f, .44f), new Vector2(.5f, .5f), new Vector2((i - 1) * 145f, i == 1 ? 12f : 0f), new Vector2(115f, 125f));
-            resultStars[i] = starObject.AddComponent<Image>();
-            resultStars[i].sprite = GetSprite("BrickBreakoutPuzzle/Sprites/UI/LevelCompletionUI", "LevelCompletionUI_9");
-            resultStars[i].preserveAspect = true;
-            resultStars[i].raycastTarget = false;
-            starObject.transform.localScale = Vector3.zero;
-        }
-        CreatePauseAction("NEXT LEVEL", Cyan, cardRect, .34f, AdvanceToNextLevel);
-        CreatePauseAction("RETRY", new Color(1f,.22f,.32f), cardRect, .19f, RetryLevel);
-        resultPanel.SetActive(false);
-    }
-
-    private static Sprite GetSprite(string resourcePath, string spriteName)
-    {
-        Sprite[] sprites = Resources.LoadAll<Sprite>(resourcePath);
-        if (sprites != null)
-            foreach (Sprite sprite in sprites)
-                if (sprite.name == spriteName) return sprite;
-        return null;
-    }
-
-    private IEnumerator AnimateCompletionStars()
-    {
-        for (int i = 0; i < resultStars.Length; i++)
-        {
-            Transform star = resultStars[i].transform;
-            star.localScale = Vector3.zero;
-            star.DOScale(Vector3.one, .3f).SetEase(Ease.OutBack);
-            ArrowRushAudio.Instance?.Play("LevelStar_" + (i + 1));
-            yield return new WaitForSecondsRealtime(.2f);
+            button.onClick.RemoveAllListeners();
+            if (button.gameObject.name == "Pause Button")
+                button.onClick.AddListener(ShowPausePanel);
+            else if (button.gameObject.name == "RESUME Button")
+                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); ResumeGame(); });
+            else if (button.gameObject.name == "RESTART Button")
+                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); retryLevelAction?.Invoke(); });
+            else if (button.gameObject.name == "HOME Button")
+                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); SceneManager.LoadScene("Menu"); });
+            else if (button.gameObject.name == "NEXT LEVEL Button")
+                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); AdvanceToNextLevel(); });
+            else if (button.gameObject.name == "RETRY Button")
+                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); RetryLevel(); });
         }
     }
 
@@ -266,7 +130,6 @@ public class PuzzleHUD : MonoBehaviour
         paused = true;
         TabCube.SetInputLocked(true);
         pausePanel.SetActive(true);
-        ArrowRushAudio.Instance?.Play("click");
     }
 
     private void ResumeGame()
@@ -278,6 +141,16 @@ public class PuzzleHUD : MonoBehaviour
 
     private void ShowHint()
     {
+        if (PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) != 1)
+        {
+            SetStatus("Hints are turned off in Settings.");
+            return;
+        }
+        if (ArrowRushEconomy.Hints <= 0)
+        {
+            SetStatus("No hints left. Buy more from the menu shop.");
+            return;
+        }
         ArrowRushAudio.Instance?.Play("pop-6");
         TabCube[] cubes = FindObjectsOfType<TabCube>();
         TabCube selected = null;
@@ -311,6 +184,8 @@ public class PuzzleHUD : MonoBehaviour
             return;
         }
 
+        ArrowRushEconomy.TryConsumeHint();
+        RefreshHintButton();
         selected.ShowHint(1.8f);
         SetStatus("Follow the glowing arrow to clear a cube.");
     }
@@ -338,13 +213,16 @@ public class PuzzleHUD : MonoBehaviour
             }
             levelActive = false;
             TabCube.SetInputLocked(true);
+            completionStarsEarned = CalculateStarsEarned();
+            SaveBestStars(completionStarsEarned);
+            int coinReward = ArrowRushEconomy.AwardLevelClear(completionStarsEarned);
             ArrowRushAudio.Instance?.Play("StarBlast");
-            SetStatus($"LEVEL CLEARED!  {moveCount} moves");
-            resultTitle.text = "LEVEL COMPLETE!";
-            resultDetails.text = $"LEVEL {currentLevel:00}\n{moveCount} MOVES";
+            SetStatus($"LEVEL CLEARED!  {moveCount} moves  •  +{coinReward} coins");
+            if (resultTitle != null) resultTitle.text = "LEVEL COMPLETE!";
+            if (resultDetails != null) resultDetails.text = $"LEVEL {currentLevel:00}\n{moveCount} MOVES\nTIME {FormatTime(Mathf.CeilToInt(timeRemaining))}\nSTARS {completionStarsEarned}/3";
             SetResultActions(true);
-            resultPanel.SetActive(true);
-            StartCoroutine(AnimateCompletionStars());
+            if (resultPanel != null) resultPanel.SetActive(true);
+            StartCoroutine(StarSystem.PresentStars(resultStars, completionStarsEarned, clip => ArrowRushAudio.Instance?.Play(clip)));
             if (actionButton != null)
             {
                 actionButton.onClick.RemoveAllListeners();
@@ -368,10 +246,10 @@ public class PuzzleHUD : MonoBehaviour
         timeRemaining = 0f;
         UpdateTimerText();
         SetStatus("TIME UP! Try the level again.");
-        resultTitle.text = "LEVEL FAILED";
-        resultDetails.text = "TIME UP\nTRY AGAIN";
+        if (resultTitle != null) resultTitle.text = "LEVEL FAILED";
+        if (resultDetails != null) resultDetails.text = "TIME UP\nTRY AGAIN";
         SetResultActions(false);
-        resultPanel.SetActive(true);
+        if (resultPanel != null) resultPanel.SetActive(true);
         if (actionButton != null)
         {
             actionButton.interactable = true;
@@ -394,6 +272,23 @@ public class PuzzleHUD : MonoBehaviour
         nextLevelAction?.Invoke();
     }
 
+    private int CalculateStarsEarned()
+    {
+        float timeRatio = levelTimeLimit <= 0f ? 0f : timeRemaining / levelTimeLimit;
+        if (timeRatio >= 0.66f) return 3;
+        if (timeRatio >= 0.33f) return 2;
+        return 1;
+    }
+
+    private void SaveBestStars(int stars)
+    {
+        string key = "ArrowRush.LevelStars." + currentLevel;
+        int best = Mathf.Clamp(PlayerPrefs.GetInt(key, 0), 0, 3);
+        if (stars <= best) return;
+        PlayerPrefs.SetInt(key, stars);
+        PlayerPrefs.Save();
+    }
+
     private void UpdateCubesText()
     {
         if (cubesText != null)
@@ -406,18 +301,60 @@ public class PuzzleHUD : MonoBehaviour
             moveText.text = $"MOVES\n{moveCount}";
     }
 
+    private void RefreshHintButton()
+    {
+        if (buttonLabel != null)
+            buttonLabel.text = $"HINT  •  {ArrowRushEconomy.Hints} LEFT";
+        if (actionButton != null)
+            actionButton.interactable = PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) == 1 && ArrowRushEconomy.Hints > 0;
+    }
+
     private void UpdateTimerText()
     {
         if (timerText == null)
             return;
 
         int seconds = Mathf.CeilToInt(timeRemaining);
-        if (seconds == displayedSeconds)
+        if (seconds != displayedSeconds)
+        {
+            displayedSeconds = seconds;
+            timerText.text = $"TIME\n{FormatTime(seconds)}";
+            timerText.color = seconds <= 10 ? new Color(1f, 0.35f, 0.3f) : Color.white;
+        }
+
+        if (seconds > 10)
+        {
+            if (lastCountdownSecond != -1)
+                ResetTimerCountdownPulse();
+            return;
+        }
+
+        if (seconds <= 0 || seconds == lastCountdownSecond)
             return;
 
-        displayedSeconds = seconds;
-        timerText.text = $"TIME\n{seconds / 60:00}:{seconds % 60:00}";
-        timerText.color = seconds <= 10 ? new Color(1f, 0.35f, 0.3f) : Color.white;
+        lastCountdownSecond = seconds;
+        Transform timerTransform = timerText.transform;
+        timerTransform.DOKill();
+        timerTransform.localScale = timerTextInitialScale;
+        timerTransform.DOScale(timerTextInitialScale * 1.15f, 0.16f)
+            .SetEase(Ease.InOutSine)
+            .SetLoops(2, LoopType.Yoyo)
+            .SetUpdate(true);
+        ArrowRushAudio.Instance?.Play("Count");
+    }
+
+    private void ResetTimerCountdownPulse()
+    {
+        lastCountdownSecond = -1;
+        Transform timerTransform = timerText.transform;
+        timerTransform.DOKill();
+        timerTransform.localScale = timerTextInitialScale;
+    }
+
+    private static string FormatTime(int seconds)
+    {
+        seconds = Mathf.Max(0, seconds);
+        return $"{seconds / 60:00}:{seconds % 60:00}";
     }
 
     private void SetStatus(string message)
@@ -426,38 +363,9 @@ public class PuzzleHUD : MonoBehaviour
             statusText.text = message;
     }
 
-    private static GameObject CreateUIObject(string objectName, Transform parent)
-    {
-        GameObject child = new GameObject(objectName, typeof(RectTransform));
-        child.transform.SetParent(parent, false);
-        return child;
-    }
-
-    private static Text CreateText(string objectName, Transform parent, int fontSize, TextAnchor alignment, Color color)
-    {
-        GameObject textObject = CreateUIObject(objectName, parent);
-        Text text = textObject.AddComponent<Text>();
-        text.font = Resources.Load<Font>("BrickBreakoutPuzzle/Fonts/Bubble Bobble") ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = fontSize;
-        text.alignment = alignment;
-        text.color = color;
-        text.raycastTarget = false;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
-        return text;
-    }
-
-    private static void SetAnchoredRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 position, Vector2 size)
-    {
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.pivot = pivot;
-        rect.anchoredPosition = position;
-        rect.sizeDelta = size;
-    }
-
     private void SetResultActions(bool completed)
     {
+        if (resultPanel == null) return;
         Transform card = resultPanel.transform.Find("Result Card");
         if (card == null) return;
         Transform next = card.Find("NEXT LEVEL Button");
@@ -466,13 +374,7 @@ public class PuzzleHUD : MonoBehaviour
         if (retry != null) retry.gameObject.SetActive(!completed);
     }
 
-    private static Sprite GetButtonSprite(string spriteName)
-    {
-        if (buttonSprites == null)
-            buttonSprites = Resources.LoadAll<Sprite>("BrickBreakoutPuzzle/Sprites/UI/MenuUI");
-        if (buttonSprites != null)
-            foreach (Sprite sprite in buttonSprites)
-                if (sprite.name == spriteName) return sprite;
-        return null;
-    }
+
 }
+
+

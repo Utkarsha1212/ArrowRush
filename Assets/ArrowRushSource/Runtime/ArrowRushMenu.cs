@@ -1,121 +1,40 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-/// <summary>Builds the Brick Breakout inspired menu and level picker for ArrowRush.</summary>
+/// <summary>Controls the scene-authored ArrowRush menu.</summary>
 public sealed class ArrowRushMenu : MonoBehaviour
 {
-    private static readonly Color Navy = new Color(0.025f, 0.08f, 0.30f, 0.93f);
-    private static readonly Color Blue = new Color(0.03f, 0.36f, 0.95f, 1f);
-    private static readonly Color Green = new Color(0.06f, 0.80f, 0.23f, 1f);
-    private static readonly Color Pink = new Color(0.96f, 0.10f, 0.39f, 1f);
-    private static Sprite[] buttonSprites;
-    private Canvas canvas;
-    private GameObject modal;
-    private Text modalTitle;
-    private Text modalBody;
+    [SerializeField] private Canvas canvas;
+    [SerializeField] private GameObject modal;
+    [SerializeField] private Text modalTitle;
+    [SerializeField] private Text modalBody;
+    [SerializeField] private GameObject levelsPage;
+    [SerializeField] private GameObject settingsPage;
+    [SerializeField] private GameObject shopPage;
+    [SerializeField] private Text progressText;
     private int chosenLevel;
     private int highestUnlocked;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void Register()
-    {
-        SceneManager.sceneLoaded += OnSceneLoaded;
-    }
-
-    private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        if (scene.name != "Menu") return;
-        if (Object.FindObjectOfType<ArrowRushMenu>() != null) return;
-        new GameObject("ArrowRush Menu UI").AddComponent<ArrowRushMenu>();
-    }
-
     private void Awake()
     {
-        EnsureEventSystem();
+        if (canvas == null)
+        {
+            Debug.LogError("ArrowRush menu Canvas is missing from Menu.unity.", this);
+            return;
+        }
         highestUnlocked = Mathf.Max(1, PlayerPrefs.GetInt("ArrowRush.HighestUnlockedLevel", 1));
         chosenLevel = Mathf.Clamp(PlayerPrefs.GetInt("ArrowRush.SelectedLevel", highestUnlocked), 1, highestUnlocked);
-        Build();
-    }
-
-    private void Build()
-    {
-        GameObject canvasObject = new GameObject("Brick Breakout Style Menu", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        canvas = canvasObject.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 100;
-        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
-        scaler.matchWidthOrHeight = 0.5f;
-        RectTransform root = canvasObject.GetComponent<RectTransform>();
-        Stretch(root);
-
-        Texture2D background = Resources.Load<Texture2D>("BrickBreakoutPuzzle/Sprites/Glossy Blue-Purple Game Menu Background");
-        if (background != null)
-        {
-            Image bg = MakeImage("Background", root, GetSprite(background), Color.white);
-            Stretch(bg.rectTransform);
-            bg.transform.SetAsFirstSibling();
-        }
-        Texture2D logo = Resources.Load<Texture2D>("BrickBreakoutPuzzle/Sprites/Glossy Breakout Puzzle Game Logo");
-        if (logo != null)
-        {
-            Image title = MakeImage("Game Logo", root, GetSprite(logo), Color.white);
-            Place(title.rectTransform, new Vector2(.5f, .75f), new Vector2(.5f, .5f), new Vector2(900f, 360f));
-        }
-
-        Button play = MakeButton("PLAY", Green, root, new Vector2(.5f, .48f), new Vector2(730f, 150f), StartGame);
-        play.GetComponentInChildren<Text>().fontSize = 62;
-        MakeButton("LEVELS", Blue, root, new Vector2(.5f, .35f), new Vector2(520f, 118f), OpenLevels);
-        MakeButton("SETTINGS", Blue, root, new Vector2(.34f, .235f), new Vector2(310f, 105f), OpenSettings);
-        MakeButton("EXIT", Pink, root, new Vector2(.66f, .235f), new Vector2(310f, 105f), Application.Quit);
-        MakeButton("SHOP", new Color(.98f, .56f, .04f), root, new Vector2(.5f, .13f), new Vector2(310f, 100f), OpenShop);
-        Text progress = MakeText(root, $"LEVEL {chosenLevel:00}", 34, Color.white);
-        Place(progress.rectTransform, new Vector2(.5f, .065f), new Vector2(.5f, .5f), new Vector2(400f, 60f));
-        BuildModal(root);
-    }
-
-    private void BuildModal(RectTransform root)
-    {
-        modal = new GameObject("Menu Modal", typeof(RectTransform), typeof(Image));
-        modal.transform.SetParent(root, false);
-        RectTransform rect = modal.GetComponent<RectTransform>();
-        Place(rect, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(850f, 1050f));
-        modal.GetComponent<Image>().color = Navy;
-        modal.SetActive(false);
-        modalTitle = MakeText(rect, "LEVEL SELECT", 48, Color.white);
-        Place(modalTitle.rectTransform, new Vector2(.5f, .92f), new Vector2(.5f, .5f), new Vector2(760f, 90f));
-        modalBody = MakeText(rect, string.Empty, 38, Color.white);
-        Place(modalBody.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(680f, 260f));
-        MakeButton("CLOSE", Pink, rect, new Vector2(.5f, .09f), new Vector2(440f, 100f), () => modal.SetActive(false));
+        BindSceneButtons();
+        UpdateProgressLabel();
     }
 
     private void OpenLevels()
     {
         modalTitle.text = "SELECT LEVEL";
         modalBody.gameObject.SetActive(false);
-        foreach (Transform child in modal.transform)
-            if (child.name.StartsWith("Level ") || child.name.StartsWith("Toggle ")) Destroy(child.gameObject);
-        for (int i = 1; i <= 12; i++)
-        {
-            int level = i;
-            int col = (i - 1) % 3;
-            int row = (i - 1) / 3;
-            bool unlocked = level <= highestUnlocked;
-            Button button = MakeButton(unlocked ? $"LEVEL {level:00}" : "LOCKED", !unlocked ? new Color(.36f,.42f,.58f) : level == chosenLevel ? Green : Blue, modal.transform,
-                new Vector2(.22f + col * .28f, .72f - row * .15f), new Vector2(205f, 110f), () =>
-                {
-                    if (level > highestUnlocked) return;
-                    chosenLevel = level;
-                    PlayerPrefs.SetInt("ArrowRush.SelectedLevel", level);
-                    PlayerPrefs.Save();
-                    StartGame();
-                });
-            button.gameObject.name = "Level " + level;
-            button.GetComponentInChildren<Text>().fontSize = 31;
-        }
+        RefreshLevelButtons();
+        ShowPage(levelsPage);
         modal.SetActive(true);
     }
 
@@ -123,32 +42,16 @@ public sealed class ArrowRushMenu : MonoBehaviour
     {
         modalTitle.text = "SETTINGS";
         modalBody.gameObject.SetActive(false);
-        foreach (Transform child in modal.transform)
-            if (child.name.StartsWith("Level ") || child.name.StartsWith("Toggle ")) Destroy(child.gameObject);
-        bool music = ArrowRushAudio.Instance == null || ArrowRushAudio.Instance.MusicEnabled;
-        bool sfx = ArrowRushAudio.Instance == null || ArrowRushAudio.Instance.SfxEnabled;
-        MakeButton("MUSIC  " + (music ? "ON" : "OFF"), Blue, modal.transform, new Vector2(.5f, .66f), new Vector2(560f, 115f), () =>
-        {
-            if (ArrowRushAudio.Instance == null) return;
-            ArrowRushAudio.Instance.SetMusicEnabled(!ArrowRushAudio.Instance.MusicEnabled);
-            OpenSettings();
-        }).gameObject.name = "Toggle Music";
-        MakeButton("SOUND  " + (sfx ? "ON" : "OFF"), Blue, modal.transform, new Vector2(.5f, .49f), new Vector2(560f, 115f), () =>
-        {
-            if (ArrowRushAudio.Instance == null) return;
-            ArrowRushAudio.Instance.SetSfxEnabled(!ArrowRushAudio.Instance.SfxEnabled);
-            OpenSettings();
-        }).gameObject.name = "Toggle SFX";
+        RefreshSettings();
+        ShowPage(settingsPage);
         modal.SetActive(true);
     }
 
     private void OpenShop()
     {
         modalTitle.text = "HINT SHOP";
-        modalBody.text = "Hints are ready in every level.\nTap HINT during play to reveal a clear cube.";
-        modalBody.gameObject.SetActive(true);
-        foreach (Transform child in modal.transform)
-            if (child.name.StartsWith("Level ") || child.name.StartsWith("Toggle ")) Destroy(child.gameObject);
+        RefreshShop();
+        ShowPage(shopPage);
         modal.SetActive(true);
     }
 
@@ -157,72 +60,164 @@ public sealed class ArrowRushMenu : MonoBehaviour
         SceneManager.LoadScene("Level");
     }
 
-    private Button MakeButton(string label, Color color, Transform parent, Vector2 anchor, Vector2 size, UnityEngine.Events.UnityAction click)
+    private void BindSceneButtons()
     {
-        GameObject go = new GameObject(label + " Button", typeof(RectTransform), typeof(Image), typeof(Button));
-        go.transform.SetParent(parent, false);
-        RectTransform rect = go.GetComponent<RectTransform>();
-        Place(rect, anchor, new Vector2(.5f, .5f), size);
-        Image image = go.GetComponent<Image>();
-        image.sprite = GetButtonSprite(label, color); image.type = Image.Type.Simple; image.color = Color.white;
-        Button button = go.GetComponent<Button>();
-        button.targetGraphic = image;
-        button.onClick.AddListener(() => ArrowRushAudio.Instance?.Play("click"));
-        button.onClick.AddListener(click);
-        Text text = MakeText(rect, label, 36, Color.white);
-        text.fontStyle = FontStyle.Bold;
-        Stretch(text.rectTransform);
-        return button;
+        foreach (Button button in canvas.GetComponentsInChildren<Button>(true))
+        {
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(() => ArrowRushAudio.Instance?.Play("click"));
+            switch (button.gameObject.name)
+            {
+                case "PLAY Button": button.onClick.AddListener(StartGame); break;
+                case "LEVELS Button": button.onClick.AddListener(OpenLevels); break;
+                case "SETTINGS Button": button.onClick.AddListener(OpenSettings); break;
+                case "EXIT Button": button.onClick.AddListener(Application.Quit); break;
+                case "SHOP Button": button.onClick.AddListener(OpenShop); break;
+                case "CLOSE Button": button.onClick.AddListener(() => modal.SetActive(false)); break;
+                case "Toggle Music": button.onClick.AddListener(ToggleMusic); break;
+                case "Toggle SFX": button.onClick.AddListener(ToggleSfx); break;
+                case "MUSIC VOLUME DOWN": button.onClick.AddListener(() => AdjustMusicVolume(-0.1f)); break;
+                case "MUSIC VOLUME UP": button.onClick.AddListener(() => AdjustMusicVolume(0.1f)); break;
+                case "SFX VOLUME DOWN": button.onClick.AddListener(() => AdjustSfxVolume(-0.1f)); break;
+                case "SFX VOLUME UP": button.onClick.AddListener(() => AdjustSfxVolume(0.1f)); break;
+                case "Toggle Hints": button.onClick.AddListener(ToggleHints); break;
+                case "BUY 1 HINT": button.onClick.AddListener(() => BuyHints(1, 50)); break;
+                case "BUY 5 HINTS": button.onClick.AddListener(() => BuyHints(5, 200)); break;
+                case "BUY 10 HINTS": button.onClick.AddListener(() => BuyHints(10, 350)); break;
+                default:
+                    if (button.gameObject.name.StartsWith("Level ") && int.TryParse(button.gameObject.name.Substring(6), out int level))
+                        button.onClick.AddListener(() => SelectLevel(level));
+                    break;
+            }
+        }
+        RefreshLevelButtons();
     }
 
-    private Text MakeText(Transform parent, string value, int size, Color color)
+    private void SelectLevel(int level)
     {
-        GameObject go = new GameObject("Label", typeof(RectTransform), typeof(Text));
-        go.transform.SetParent(parent, false);
-        Text text = go.GetComponent<Text>();
-        text.text = value;
-        text.font = Resources.Load<Font>("BrickBreakoutPuzzle/Fonts/Bubble Bobble") ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = size; text.alignment = TextAnchor.MiddleCenter; text.color = color;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap; text.raycastTarget = false;
-        return text;
+        if (level > highestUnlocked) return;
+        chosenLevel = level;
+        PlayerPrefs.SetInt("ArrowRush.SelectedLevel", level);
+        PlayerPrefs.Save();
+        StartGame();
     }
 
-    private Image MakeImage(string name, Transform parent, Sprite sprite, Color color)
+    private void ToggleMusic()
     {
-        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));
-        go.transform.SetParent(parent, false);
-        Image image = go.GetComponent<Image>(); image.sprite = sprite; image.color = color; image.raycastTarget = false;
-        return image;
+        if (ArrowRushAudio.Instance == null) return;
+        ArrowRushAudio.Instance.SetMusicEnabled(!ArrowRushAudio.Instance.MusicEnabled);
+        OpenSettings();
     }
 
-    private Sprite GetButtonSprite(string label, Color color)
+    private void ToggleSfx()
     {
-        if (buttonSprites == null)
-            buttonSprites = Resources.LoadAll<Sprite>("BrickBreakoutPuzzle/Sprites/UI/MenuUI");
-        int spriteIndex = label == "PLAY" ? 0 : color == Green ? 5 : color == Blue ? 6 : color == Pink ? 7 : color.r > .8f && color.g > .4f ? 1 : 6;
-        if (buttonSprites != null)
-            foreach (Sprite sprite in buttonSprites)
-                if (sprite.name == "MenuUI_" + spriteIndex) return sprite;
-        Texture2D pixel = Texture2D.whiteTexture;
-        return Sprite.Create(pixel, new Rect(0, 0, 1, 1), new Vector2(.5f, .5f), 1f, 0, SpriteMeshType.FullRect, new Vector4(.4f,.4f,.4f,.4f));
+        if (ArrowRushAudio.Instance == null) return;
+        ArrowRushAudio.Instance.SetSfxEnabled(!ArrowRushAudio.Instance.SfxEnabled);
+        OpenSettings();
     }
 
-    private static Sprite GetSprite(Texture2D texture) => Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f), 100f);
-
-    private static void EnsureEventSystem()
+    private void AdjustMusicVolume(float amount)
     {
-        if (EventSystem.current != null) return;
-        GameObject system = new GameObject("EventSystem", typeof(EventSystem));
-        system.AddComponent<StandaloneInputModule>();
+        if (ArrowRushAudio.Instance == null) return;
+        ArrowRushAudio.Instance.SetMusicVolume(ArrowRushAudio.Instance.MusicVolume + amount);
+        RefreshSettings();
     }
 
-    private static void Stretch(RectTransform rect)
+    private void AdjustSfxVolume(float amount)
     {
-        rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+        if (ArrowRushAudio.Instance == null) return;
+        ArrowRushAudio.Instance.SetSfxVolume(ArrowRushAudio.Instance.SfxVolume + amount);
+        RefreshSettings();
     }
 
-    private static void Place(RectTransform rect, Vector2 anchor, Vector2 pivot, Vector2 size)
+    private void ToggleHints()
     {
-        rect.anchorMin = anchor; rect.anchorMax = anchor; rect.pivot = pivot; rect.anchoredPosition = Vector2.zero; rect.sizeDelta = size;
+        bool enabled = PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) == 0;
+        PlayerPrefs.SetInt("ArrowRush.HintsEnabled", enabled ? 1 : 0);
+        PlayerPrefs.Save();
+        RefreshSettings();
     }
+
+    private void RefreshSettings()
+    {
+        ArrowRushAudio audio = ArrowRushAudio.Instance;
+        bool music = audio == null || audio.MusicEnabled;
+        bool sfx = audio == null || audio.SfxEnabled;
+        bool hints = PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) == 1;
+        SetButtonLabel("Toggle Music", "MUSIC  " + (music ? "ON" : "OFF"));
+        SetButtonLabel("Toggle SFX", "SOUND  " + (sfx ? "ON" : "OFF"));
+        int musicVolume = Mathf.RoundToInt((audio == null ? 1f : audio.MusicVolume) * 100f);
+        int sfxVolume = Mathf.RoundToInt((audio == null ? 1f : audio.SfxVolume) * 100f);
+        SetButtonLabel("MUSIC VOLUME DOWN", $"MUSIC VOL  {musicVolume}%  −");
+        SetButtonLabel("MUSIC VOLUME UP", $"MUSIC VOL  {musicVolume}%  +");
+        SetButtonLabel("SFX VOLUME DOWN", $"SOUND VOL  {sfxVolume}%  −");
+        SetButtonLabel("SFX VOLUME UP", $"SOUND VOL  {sfxVolume}%  +");
+        SetButtonLabel("Toggle Hints", "HINTS  " + (hints ? "ON" : "OFF"));
+    }
+
+    private void RefreshShop()
+    {
+        SetButtonLabel("BUY 1 HINT", "1 HINT  •  50 COINS");
+        SetButtonLabel("BUY 5 HINTS", "5 HINTS  •  200 COINS");
+        SetButtonLabel("BUY 10 HINTS", "10 HINTS  •  350 COINS");
+        if (modalBody != null)
+        {
+            modalBody.text = $"COINS  {ArrowRushEconomy.Coins}     HINTS  {ArrowRushEconomy.Hints}\nEarn coins by clearing levels.";
+            modalBody.gameObject.SetActive(true);
+        }
+    }
+
+    private void BuyHints(int amount, int price)
+    {
+        if (!ArrowRushEconomy.TryBuyHints(amount, price))
+        {
+            if (modalBody != null) modalBody.text = $"NOT ENOUGH COINS\nCOINS  {ArrowRushEconomy.Coins}     HINTS  {ArrowRushEconomy.Hints}\nEarn coins by clearing levels.";
+            return;
+        }
+        RefreshShop();
+    }
+
+    private void RefreshLevelButtons()
+    {
+        if (levelsPage == null) return;
+        foreach (Button button in levelsPage.GetComponentsInChildren<Button>(true))
+        {
+            if (!button.gameObject.name.StartsWith("Level ") || !int.TryParse(button.gameObject.name.Substring(6), out int level)) continue;
+            bool unlocked = level <= highestUnlocked;
+            button.interactable = unlocked;
+            Text label = button.GetComponentInChildren<Text>();
+            int savedStars = Mathf.Clamp(PlayerPrefs.GetInt("ArrowRush.LevelStars." + level, 0), 0, 3);
+            if (label != null)
+            {
+                label.text = unlocked ? $"LEVEL {level:00}\nSTARS {savedStars}/3" : "LOCKED";
+                label.fontSize = 23;
+            }
+            button.image.color = unlocked ? Color.white : new Color(.6f,.6f,.6f);
+        }
+    }
+
+    private void UpdateProgressLabel()
+    {
+        if (progressText != null) progressText.text = $"LEVEL {chosenLevel:00}";
+    }
+
+    private void SetButtonLabel(string objectName, string label)
+    {
+        foreach (Button button in canvas.GetComponentsInChildren<Button>(true))
+        {
+            if (button.gameObject.name != objectName) continue;
+            Text text = button.GetComponentInChildren<Text>();
+            if (text != null) text.text = label;
+            return;
+        }
+    }
+    private void ShowPage(GameObject page)
+    {
+        if (levelsPage != null) levelsPage.SetActive(page == levelsPage);
+        if (settingsPage != null) settingsPage.SetActive(page == settingsPage);
+        if (shopPage != null) shopPage.SetActive(page == shopPage);
+    }
+
+
 }
+

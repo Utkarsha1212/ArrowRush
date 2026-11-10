@@ -37,7 +37,6 @@ public class TabCube : MonoBehaviour
 
     private bool isMoving;
     private Tween movementTween;
-    private static TabCube activeMover;
     private static readonly HashSet<TabCube> activeCubes = new HashSet<TabCube>();
     private Mesh arrowMesh;
     private static Material sharedArrowMaterial;
@@ -45,7 +44,8 @@ public class TabCube : MonoBehaviour
     private TrailRenderer exitTrail;
     private static Material sharedTrailMaterial;
     private Coroutine hintRoutine;
-    private static readonly int OutlineColorId = Shader.PropertyToID("_OutlineColor");
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorId = Shader.PropertyToID("_Color");
 
     private Vector3 MoveDirection
     {
@@ -83,7 +83,7 @@ public class TabCube : MonoBehaviour
 
     private void OnMouseDown()
     {
-        if (InputLocked || IsPointerOverUI() || isMoving || (activeMover != null && activeMover != this))
+        if (InputLocked || IsPointerOverUI() || isMoving)
             return;
 
         TryMoveOut();
@@ -91,11 +91,6 @@ public class TabCube : MonoBehaviour
 
     private void TryMoveOut()
     {
-        // Only one cube can move at a time.
-        if (activeMover != null && activeMover != this)
-            return;
-
-        activeMover = this;
         isMoving = true;
         Vector3 start = transform.position;
         Vector3 moveDirection = MoveDirection;
@@ -121,7 +116,6 @@ public class TabCube : MonoBehaviour
             {
                 CubeExited?.Invoke(this);
                 ReleaseExitTrail();
-                activeMover = null;
                 movementTween = null;
                 Destroy(gameObject);
             });
@@ -148,7 +142,9 @@ public class TabCube : MonoBehaviour
         cubeRenderer.GetPropertyBlock(originalBlock);
         MaterialPropertyBlock highlightBlock = new MaterialPropertyBlock();
         cubeRenderer.GetPropertyBlock(highlightBlock);
-        highlightBlock.SetColor(OutlineColorId, new Color(0.1f, 0.85f, 1f));
+        Color hintColor = new Color(0.1f, 0.85f, 1f);
+        highlightBlock.SetColor(BaseColorId, hintColor);
+        highlightBlock.SetColor(ColorId, hintColor);
         cubeRenderer.SetPropertyBlock(highlightBlock);
         yield return new WaitForSeconds(duration);
         if (cubeRenderer != null)
@@ -189,7 +185,6 @@ public class TabCube : MonoBehaviour
             .OnComplete(() =>
             {
                 isMoving = false;
-                activeMover = null;
                 movementTween = null;
             });
     }
@@ -241,8 +236,6 @@ public class TabCube : MonoBehaviour
             movementTween.Kill();
         movementTween = null;
         isMoving = false;
-        if (activeMover == this)
-            activeMover = null;
     }
 
     private float GetHalfSizeAlongDirection(Vector3 moveDirection)

@@ -18,7 +18,6 @@ public class LevelPuzzleGenerator : MonoBehaviour
 
     [SerializeField] private GameObject puzzlePrefab;
     [SerializeField] private Transform puzzleParent;
-    [SerializeField] private Material outlinedCubeMaterial;
     [Min(1)] [SerializeField] private int levelNumber = 1;
     [SerializeField] private float cubeSpacing = 1f;
     [Header("Level Difficulty")]
@@ -71,7 +70,12 @@ public class LevelPuzzleGenerator : MonoBehaviour
         if (Application.isPlaying)
         {
             if (puzzleHUD == null)
-                puzzleHUD = GetComponent<PuzzleHUD>() ?? gameObject.AddComponent<PuzzleHUD>();
+                puzzleHUD = GetComponent<PuzzleHUD>();
+            if (puzzleHUD == null)
+            {
+                Debug.LogError("Add a PuzzleHUD component with a scene-authored Canvas to the LevelPuzzleGenerator.", this);
+                return;
+            }
             float levelTime = Mathf.Min(maximumLevelTime, baseLevelTime + Mathf.Sqrt(cells.Count) * timePerSqrtCube);
             puzzleHUD.Initialize(levelNumber, cells.Count, levelTime, LoadNextPuzzle, ReloadCurrentPuzzle);
             pendingScaleAnimations = cells.Count;
@@ -91,7 +95,6 @@ public class LevelPuzzleGenerator : MonoBehaviour
             cube.transform.localRotation = Quaternion.identity;
             Vector3 finalScale = Vector3.one * spacing;
             cube.transform.localScale = finalScale;
-            ApplyOutlinedMaterial(cube);
             ApplyCubeColor(cube);
 
             Renderer cubeRenderer = cube.GetComponent<Renderer>();
@@ -129,16 +132,6 @@ public class LevelPuzzleGenerator : MonoBehaviour
 
         if (cameraHandler != null && hasPuzzleBounds)
             cameraHandler.FramePuzzle(puzzleBounds);
-    }
-
-    private void ApplyOutlinedMaterial(GameObject cube)
-    {
-        if (outlinedCubeMaterial == null)
-            return;
-
-        Renderer cubeRenderer = cube.GetComponent<Renderer>();
-        if (cubeRenderer != null)
-            cubeRenderer.sharedMaterial = outlinedCubeMaterial;
     }
 
     private void ApplyCubeColor(GameObject cube)
