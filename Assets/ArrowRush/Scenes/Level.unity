@@ -488,7 +488,7 @@ MonoBehaviour:
   cubeSpacing: 1
   startingCubeCount: 2
   cubesAddedPerLevel: 2
-  difficultyCapLevel: 2000
+  difficultyCapLevel: 1
   baseLevelTime: 30
   timePerSqrtCube: 5
   maximumLevelTime: 360

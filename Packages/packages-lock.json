@@ -1,5 +1,19 @@
 {
   "dependencies": {
+    "com.funcratestudio.advertisement": {
+      "version": "https://github.com/aniket8466/FuncrateStudioPackages.git?path=/Assets/FS_Tools/FSAdvertisement",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "e74b26d6237c0a45f2d2a251f4f8e07a6a492c5c"
+    },
+    "com.funcratestudio.safearea": {
+      "version": "https://github.com/aniket8466/FuncrateStudioPackages.git?path=/Assets/FS_Tools/SafeArea",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "e74b26d6237c0a45f2d2a251f4f8e07a6a492c5c"
+    },
     "com.unity.2d.sprite": {
       "version": "1.0.0",
       "depth": 0,
@@ -71,6 +85,15 @@
       "depth": 1,
       "source": "registry",
       "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.recorder": {
+      "version": "4.0.3",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.timeline": "1.0.0"
+      },
       "url": "https://packages.unity.com"
     },
     "com.unity.settings-manager": {
