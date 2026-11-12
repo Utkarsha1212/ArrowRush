@@ -4,20 +4,23 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using DG.Tweening;
 using System.Collections;
+using TMPro;
+using FuncrateStudio;
 
-/// <summary>Runtime HUD for the arrow puzzle: level, taps, feedback, and hints.</summary>
-public class PuzzleHUD : MonoBehaviour
+/// <summary>Runtime HUD for the arrow puzzle: level, timer, and hints.</summary>
+public class LevelUIManager : MonoBehaviour
 {
     [SerializeField] private Canvas uiCanvas;
-    [SerializeField] private Text levelText;
-    [SerializeField] private Text cubesText;
-    [SerializeField] private Text moveText;
-    [SerializeField] private Text timerText;
-    [SerializeField] private Text statusText;
-    [SerializeField] private Text buttonLabel;
+    [SerializeField] private TMP_Text levelText;
+    [SerializeField] private TMP_Text timerText;
+    [SerializeField] private TMP_Text buttonLabel;
     [SerializeField] private Button actionButton;
-    private Action nextLevelAction;
-    private Action retryLevelAction;
+    [SerializeField] private Button pauseButton;
+    [SerializeField] private Button continueButton;
+    [SerializeField] private GameObject arrowHolder;
+    [SerializeField] private TMP_Text coinRewardText;
+    private Action loadNextLevelAction;
+    private Action restartLevelAction;
     private int moveCount;
     private int cubesRemaining;
     private float timeRemaining;
@@ -25,14 +28,18 @@ public class PuzzleHUD : MonoBehaviour
     private int currentLevel;
     private bool levelActive;
     private bool paused;
+    private bool rewardAdPending;
     private float levelTimeLimit;
     private int completionStarsEarned;
     private int lastCountdownSecond = -1;
     private Vector3 timerTextInitialScale;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject resultPanel;
-    [SerializeField] private Text resultTitle;
-    [SerializeField] private Text resultDetails;
+    [SerializeField] private GameObject failedPanel;
+    [SerializeField] private TMP_Text resultTitle;
+    [SerializeField] private TMP_Text resultDetails;
+    [SerializeField] private TMP_Text failedTitle;
+    [SerializeField] private TMP_Text failedDetails;
     [SerializeField] private Image[] resultStars;
 
     private void OnEnable()
@@ -59,7 +66,7 @@ public class PuzzleHUD : MonoBehaviour
         BindSceneButtons();
     }
 
-    public void Initialize(int level, int cubeCount, float timeLimit, Action onNextLevel, Action onRetryLevel)
+    public void InitializeLevel(int level, int cubeCount, float timeLimit, Action loadNextLevel, Action restartLevel)
     {
         moveCount = 0;
         currentLevel = Mathf.Max(1, level);
@@ -73,23 +80,22 @@ public class PuzzleHUD : MonoBehaviour
         paused = false;
         if (pausePanel != null) pausePanel.SetActive(false);
         if (resultPanel != null) resultPanel.SetActive(false);
+        if (failedPanel != null) failedPanel.SetActive(false);
+        UpdateGameplayUIVisibility(true);
         StarSystem.HideStars(resultStars);
-        nextLevelAction = onNextLevel;
-        retryLevelAction = onRetryLevel;
+        loadNextLevelAction = loadNextLevel;
+        restartLevelAction = restartLevel;
         TabCube.SetInputLocked(false);
         if (levelText != null) levelText.text = $"LEVEL  {currentLevel}";
-        UpdateCubesText();
-        UpdateMoveText();
-        UpdateTimerText();
-        SetStatus("Tap a cube whose arrow has a clear path.");
+        UpdateTimerUI();
         if (actionButton != null)
         {
-            actionButton.interactable = PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) == 1;
+            actionButton.interactable = GameManager.HintButtonEnabled;
             actionButton.onClick.RemoveAllListeners();
-            actionButton.onClick.AddListener(ShowHint);
-            actionButton.onClick.AddListener(() => ArrowRushAudio.Instance?.Play("click"));
+            actionButton.onClick.AddListener(UseHint);
+            actionButton.onClick.AddListener(() => AudioManager.Instance?.PlaySFX("click"));
         }
-        RefreshHintButton();
+        UpdateHintCountUI();
     }
 
     private void Update()
@@ -98,9 +104,9 @@ public class PuzzleHUD : MonoBehaviour
             return;
 
         timeRemaining = Mathf.Max(0f, timeRemaining - Time.deltaTime);
-        UpdateTimerText();
+        UpdateTimerUI();
         if (timeRemaining <= 0f)
-            HandleTimeExpired();
+            HandleLevelFailed();
     }
 
     private void BindSceneButtons()
@@ -112,15 +118,19 @@ public class PuzzleHUD : MonoBehaviour
             if (button.gameObject.name == "Pause Button")
                 button.onClick.AddListener(ShowPausePanel);
             else if (button.gameObject.name == "RESUME Button")
-                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); ResumeGame(); });
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); ResumeGame(); });
             else if (button.gameObject.name == "RESTART Button")
-                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); retryLevelAction?.Invoke(); });
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); restartLevelAction?.Invoke(); });
             else if (button.gameObject.name == "HOME Button")
-                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); SceneManager.LoadScene("Menu"); });
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); SceneManager.LoadScene("Menu"); });
+            else if (button.gameObject.name == "HomeBtn" || button.gameObject.name == "RETRY Button")
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); SceneManager.LoadScene("Menu"); });
             else if (button.gameObject.name == "NEXT LEVEL Button")
-                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); AdvanceToNextLevel(); });
-            else if (button.gameObject.name == "RETRY Button")
-                button.onClick.AddListener(() => { ArrowRushAudio.Instance?.Play("click"); RetryLevel(); });
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); LoadNextLevel(); });
+            else if (button.gameObject.name == "RetryBtn")
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); RestartLevel(); });
+            else if (button.gameObject.name == "WatchAd")
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); ResumeWithCoinsOrAd(); });
         }
     }
 
@@ -129,6 +139,7 @@ public class PuzzleHUD : MonoBehaviour
         if (!levelActive || TabCube.InputLocked || pausePanel == null) return;
         paused = true;
         TabCube.SetInputLocked(true);
+        UpdateGameplayUIVisibility(false);
         pausePanel.SetActive(true);
     }
 
@@ -137,21 +148,30 @@ public class PuzzleHUD : MonoBehaviour
         paused = false;
         TabCube.SetInputLocked(false);
         if (pausePanel != null) pausePanel.SetActive(false);
+        UpdateGameplayUIVisibility(true);
     }
 
-    private void ShowHint()
+    private void UseHint()
     {
-        if (PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) != 1)
+        if (!GameManager.HintButtonEnabled)
+            return;
+        if (GameManager.Hints <= 0)
         {
-            SetStatus("Hints are turned off in Settings.");
+            actionButton.transform.DOKill();
+            actionButton.transform.DOPunchScale(Vector3.one * 0.2f, 0.35f, 6, 0.7f).SetUpdate(true);
+            AudioManager.Instance?.PlaySFX("Wrong");
+            FSAdsManager ads = FSAdsManager.Instance;
+            if (rewardAdPending || ads == null || !ads.IsRewardedAdReady) return;
+            rewardAdPending = true;
+            ads.ShowRewardedAd(() =>
+            {
+                GameManager.AddHints(1);
+                UpdateHintCountUI();
+                UseHint();
+            }, () => rewardAdPending = false);
             return;
         }
-        if (ArrowRushEconomy.Hints <= 0)
-        {
-            SetStatus("No hints left. Buy more from the menu shop.");
-            return;
-        }
-        ArrowRushAudio.Instance?.Play("pop-6");
+        AudioManager.Instance?.PlaySFX("pop-6");
         TabCube[] cubes = FindObjectsOfType<TabCube>();
         TabCube selected = null;
         float bestScreenDistance = float.MaxValue;
@@ -179,30 +199,23 @@ public class PuzzleHUD : MonoBehaviour
         }
 
         if (selected == null)
-        {
-            SetStatus("No clear arrow is available right now.");
             return;
-        }
 
-        ArrowRushEconomy.TryConsumeHint();
-        RefreshHintButton();
+        GameManager.TryUseHint();
+        UpdateHintCountUI();
         selected.ShowHint(1.8f);
-        SetStatus("Follow the glowing arrow to clear a cube.");
     }
 
     private void HandleMoveAttempted(TabCube cube, bool blocked)
     {
-        ArrowRushAudio.Instance?.Play(blocked ? "Wrong" : "click");
+        AudioManager.Instance?.PlaySFX(blocked ? "Wrong" : "click");
         moveCount++;
-        UpdateMoveText();
-        SetStatus(blocked ? "Blocked! Another cube is in the way." : "Clear path! Cube moving out.");
     }
 
     private void HandleCubeExited(TabCube cube)
     {
-        ArrowRushAudio.Instance?.Play("Slide");
+        AudioManager.Instance?.PlaySFX("Slide");
         cubesRemaining = Mathf.Max(0, cubesRemaining - 1);
-        UpdateCubesText();
         if (cubesRemaining == 0)
         {
             int highest = Mathf.Max(1, PlayerPrefs.GetInt("ArrowRush.HighestUnlockedLevel", 1));
@@ -215,26 +228,19 @@ public class PuzzleHUD : MonoBehaviour
             TabCube.SetInputLocked(true);
             completionStarsEarned = CalculateStarsEarned();
             SaveBestStars(completionStarsEarned);
-            int coinReward = ArrowRushEconomy.AwardLevelClear(completionStarsEarned);
-            ArrowRushAudio.Instance?.Play("StarBlast");
-            SetStatus($"LEVEL CLEARED!  {moveCount} moves  •  +{coinReward} coins");
+            int coinReward = GameManager.AwardCoinsForLevelStars(completionStarsEarned);
+            AudioManager.Instance?.PlaySFX("StarBlast");
             if (resultTitle != null) resultTitle.text = "LEVEL COMPLETE!";
-            if (resultDetails != null) resultDetails.text = $"LEVEL {currentLevel:00}\n{moveCount} MOVES\nTIME {FormatTime(Mathf.CeilToInt(timeRemaining))}\nSTARS {completionStarsEarned}/3";
-            SetResultActions(true);
+            if (resultDetails != null) resultDetails.text = $"LEVEL {currentLevel:00}\nTIME: {FormatTime(Mathf.CeilToInt(timeRemaining))}";
+            if (coinRewardText != null) coinRewardText.text = $"+{coinReward}";
+            UpdateGameplayUIVisibility(false);
+            if (failedPanel != null) failedPanel.SetActive(false);
             if (resultPanel != null) resultPanel.SetActive(true);
-            StartCoroutine(StarSystem.PresentStars(resultStars, completionStarsEarned, clip => ArrowRushAudio.Instance?.Play(clip)));
-            if (actionButton != null)
-            {
-                actionButton.onClick.RemoveAllListeners();
-                actionButton.onClick.AddListener(AdvanceToNextLevel);
-                actionButton.onClick.AddListener(() => ArrowRushAudio.Instance?.Play("click"));
-            }
-            if (buttonLabel != null)
-                buttonLabel.text = "NEXT LEVEL";
+            StartCoroutine(StarSystem.PresentStars(resultStars, completionStarsEarned, clip => AudioManager.Instance?.PlaySFX(clip)));
         }
     }
 
-    private void HandleTimeExpired()
+    private void HandleLevelFailed()
     {
         if (!levelActive)
             return;
@@ -244,32 +250,63 @@ public class PuzzleHUD : MonoBehaviour
         if (pausePanel != null) pausePanel.SetActive(false);
         TabCube.SetInputLocked(true);
         timeRemaining = 0f;
-        UpdateTimerText();
-        SetStatus("TIME UP! Try the level again.");
-        if (resultTitle != null) resultTitle.text = "LEVEL FAILED";
-        if (resultDetails != null) resultDetails.text = "TIME UP\nTRY AGAIN";
-        SetResultActions(false);
-        if (resultPanel != null) resultPanel.SetActive(true);
-        if (actionButton != null)
+        UpdateTimerUI();
+        if (resultPanel != null) resultPanel.SetActive(false);
+        if (failedTitle != null) failedTitle.text = "LEVEL FAILED";
+        if (failedDetails != null) failedDetails.text = $"LEVEL {currentLevel:00}\nHINTS: {GameManager.Hints}\nTIME: {FormatTime(Mathf.CeilToInt(timeRemaining))}";
+        UpdateGameplayUIVisibility(false);
+        if (failedPanel != null) failedPanel.SetActive(true);
+        AudioManager.Instance?.PlaySFX("Wrong");
+    }
+
+    private void RestartLevel()
+    {
+        restartLevelAction?.Invoke();
+    }
+
+    private void ResumeWithCoinsOrAd()
+    {
+        if (!failedPanel.activeSelf || rewardAdPending) return;
+        if (GameManager.Coins >= 50)
         {
-            actionButton.interactable = true;
-            actionButton.onClick.RemoveAllListeners();
-            actionButton.onClick.AddListener(RetryLevel);
-            actionButton.onClick.AddListener(() => ArrowRushAudio.Instance?.Play("click"));
+            if (GameManager.TrySpendCoins(50)) ResumeAfterTime();
+            return;
         }
-        if (buttonLabel != null)
-            buttonLabel.text = "RETRY LEVEL";
-        ArrowRushAudio.Instance?.Play("Wrong");
+
+        FSAdsManager ads = FSAdsManager.Instance;
+        if (ads == null || !ads.IsRewardedAdReady)
+        {
+            if (continueButton != null) continueButton.transform.DOPunchScale(Vector3.one * 0.15f, 0.35f, 5, 0.7f).SetUpdate(true);
+            return;
+        }
+
+        rewardAdPending = true;
+        ads.ShowRewardedAd(ResumeAfterTime, () => rewardAdPending = false);
     }
 
-    private void RetryLevel()
+    private void ResumeAfterTime()
     {
-        retryLevelAction?.Invoke();
+        timeRemaining = 10f;
+        levelActive = true;
+        paused = false;
+        if (failedPanel != null) failedPanel.SetActive(false);
+        TabCube.SetInputLocked(false);
+        UpdateGameplayUIVisibility(true);
+        UpdateTimerUI();
     }
 
-    private void AdvanceToNextLevel()
+    private void UpdateGameplayUIVisibility(bool visible)
     {
-        nextLevelAction?.Invoke();
+        if (levelText != null) levelText.gameObject.SetActive(visible);
+        if (timerText != null) timerText.gameObject.SetActive(visible);
+        if (actionButton != null) actionButton.gameObject.SetActive(visible);
+        if (pauseButton != null) pauseButton.gameObject.SetActive(visible);
+        if (arrowHolder != null) arrowHolder.SetActive(visible);
+    }
+
+    private void LoadNextLevel()
+    {
+        loadNextLevelAction?.Invoke();
     }
 
     private int CalculateStarsEarned()
@@ -289,27 +326,15 @@ public class PuzzleHUD : MonoBehaviour
         PlayerPrefs.Save();
     }
 
-    private void UpdateCubesText()
-    {
-        if (cubesText != null)
-            cubesText.text = $"CUBES  {cubesRemaining}";
-    }
-
-    private void UpdateMoveText()
-    {
-        if (moveText != null)
-            moveText.text = $"MOVES\n{moveCount}";
-    }
-
-    private void RefreshHintButton()
+    private void UpdateHintCountUI()
     {
         if (buttonLabel != null)
-            buttonLabel.text = $"HINT  •  {ArrowRushEconomy.Hints} LEFT";
+            buttonLabel.text = GameManager.Hints.ToString();
         if (actionButton != null)
-            actionButton.interactable = PlayerPrefs.GetInt("ArrowRush.HintsEnabled", 1) == 1 && ArrowRushEconomy.Hints > 0;
+            actionButton.interactable = GameManager.HintButtonEnabled;
     }
 
-    private void UpdateTimerText()
+    private void UpdateTimerUI()
     {
         if (timerText == null)
             return;
@@ -340,7 +365,7 @@ public class PuzzleHUD : MonoBehaviour
             .SetEase(Ease.InOutSine)
             .SetLoops(2, LoopType.Yoyo)
             .SetUpdate(true);
-        ArrowRushAudio.Instance?.Play("Count");
+        AudioManager.Instance?.PlaySFX("Count");
     }
 
     private void ResetTimerCountdownPulse()
@@ -356,24 +381,6 @@ public class PuzzleHUD : MonoBehaviour
         seconds = Mathf.Max(0, seconds);
         return $"{seconds / 60:00}:{seconds % 60:00}";
     }
-
-    private void SetStatus(string message)
-    {
-        if (statusText != null)
-            statusText.text = message;
-    }
-
-    private void SetResultActions(bool completed)
-    {
-        if (resultPanel == null) return;
-        Transform card = resultPanel.transform.Find("Result Card");
-        if (card == null) return;
-        Transform next = card.Find("NEXT LEVEL Button");
-        Transform retry = card.Find("RETRY Button");
-        if (next != null) next.gameObject.SetActive(completed);
-        if (retry != null) retry.gameObject.SetActive(!completed);
-    }
-
 
 }
 

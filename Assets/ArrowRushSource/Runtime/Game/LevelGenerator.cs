@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
 
-public class LevelPuzzleGenerator : MonoBehaviour
+public class LevelGenerator : MonoBehaviour
 {
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorId = Shader.PropertyToID("_Color");
@@ -34,22 +34,22 @@ public class LevelPuzzleGenerator : MonoBehaviour
     [Min(0f)] [SerializeField] private float maximumScaleUpDelay = 0.5f;
     private readonly List<TabCube> generatedCubes = new List<TabCube>();
     private MaterialPropertyBlock materialPropertyBlock;
-    private PuzzleHUD puzzleHUD;
+    private LevelUIManager levelUI;
     private CameraHandler cameraHandler;
     private int pendingScaleAnimations;
 
     private void Start()
     {
         levelNumber = Mathf.Clamp(PlayerPrefs.GetInt("ArrowRush.SelectedLevel", levelNumber), 1, Mathf.Max(1, difficultyCapLevel));
-        GeneratePuzzle();
+        GenerateLevel();
     }
 
-    [ContextMenu("Generate Puzzle")]
-    public void GeneratePuzzle()
+    [ContextMenu("Generate Level")]
+    public void GenerateLevel()
     {
         if (puzzlePrefab == null)
         {
-            Debug.LogError("Assign a cube prefab to LevelPuzzleGenerator before generating a puzzle.", this);
+            Debug.LogError("Assign a cube prefab to LevelGenerator before generating a level.", this);
             return;
         }
 
@@ -69,15 +69,15 @@ public class LevelPuzzleGenerator : MonoBehaviour
         List<Vector3Int> cells = BuildCubeStructure(cubeCount, out Vector3Int structureSize);
         if (Application.isPlaying)
         {
-            if (puzzleHUD == null)
-                puzzleHUD = GetComponent<PuzzleHUD>();
-            if (puzzleHUD == null)
+            if (levelUI == null)
+                levelUI = GetComponent<LevelUIManager>();
+            if (levelUI == null)
             {
-                Debug.LogError("Add a PuzzleHUD component with a scene-authored Canvas to the LevelPuzzleGenerator.", this);
+                Debug.LogError("Add a LevelUIManager component with a scene-authored Canvas to LevelGenerator.", this);
                 return;
             }
             float levelTime = Mathf.Min(maximumLevelTime, baseLevelTime + Mathf.Sqrt(cells.Count) * timePerSqrtCube);
-            puzzleHUD.Initialize(levelNumber, cells.Count, levelTime, LoadNextPuzzle, ReloadCurrentPuzzle);
+            levelUI.InitializeLevel(levelNumber, cells.Count, levelTime, LoadNextLevel, RestartLevel);
             pendingScaleAnimations = cells.Count;
             TabCube.SetInputLocked(true);
         }
@@ -232,17 +232,17 @@ public class LevelPuzzleGenerator : MonoBehaviour
         return Vector3Int.left;
     }
 
-    public void LoadNextPuzzle()
+    public void LoadNextLevel()
     {
         levelNumber++;
         PlayerPrefs.SetInt("ArrowRush.SelectedLevel", levelNumber);
         PlayerPrefs.Save();
-        GeneratePuzzle();
+        GenerateLevel();
     }
 
-    public void ReloadCurrentPuzzle()
+    public void RestartLevel()
     {
-        GeneratePuzzle();
+        GenerateLevel();
     }
 
     private static Vector3 GetCenter(List<Vector3Int> cells)

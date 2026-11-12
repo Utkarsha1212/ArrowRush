@@ -93,6 +93,7 @@ public class TabCube : MonoBehaviour
     {
         isMoving = true;
         Vector3 start = transform.position;
+        Vector3 startScale = transform.localScale;
         Vector3 moveDirection = MoveDirection;
 
         // Validate the actual scene so a blocked arrow never passes through a cube.
@@ -100,18 +101,24 @@ public class TabCube : MonoBehaviour
         MoveAttempted?.Invoke(this, blocked);
         if (blocked)
         {
-            BounceFromBlocker(start, moveDirection, blockerDistance);
+            movementTween = DOTween.Sequence()
+                .Append(transform.DOScale(startScale * 0.88f, 0.08f).SetEase(Ease.OutQuad))
+                .Append(transform.DOScale(startScale, 0.1f).SetEase(Ease.OutBack))
+                .AppendCallback(() => BounceFromBlocker(start, moveDirection, blockerDistance));
             return;
         }
 
         Vector3 target = start + moveDirection * clearMoveDistance;
-        if (exitTrail != null)
-        {
-            exitTrail.Clear();
-            exitTrail.emitting = true;
-        }
-        movementTween = transform.DOMove(target, GetTweenDuration(clearMoveDistance))
-            .SetEase(Ease.InQuad)
+        movementTween = DOTween.Sequence()
+            .Append(transform.DOScale(startScale * 0.88f, 0.08f).SetEase(Ease.OutQuad))
+            .Append(transform.DOScale(startScale, 0.1f).SetEase(Ease.OutBack))
+            .AppendCallback(() =>
+            {
+                if (exitTrail == null) return;
+                exitTrail.Clear();
+                exitTrail.emitting = true;
+            })
+            .Append(transform.DOMove(target, GetTweenDuration(clearMoveDistance)).SetEase(Ease.InQuad))
             .OnComplete(() =>
             {
                 CubeExited?.Invoke(this);
