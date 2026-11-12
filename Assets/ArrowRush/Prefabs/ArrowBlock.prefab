@@ -122,4 +122,4 @@ MonoBehaviour:
   moveSpeed: 8
   clearMoveDistance: 12
   gapBeforeBlocker: 0.04
-
+  blockerLaneTolerance: 0.1

@@ -26,6 +26,7 @@ public class LevelUIManager : MonoBehaviour
     private float timeRemaining;
     private int displayedSeconds = -1;
     private int currentLevel;
+    private TabCube lastHintedCube;
     private bool levelActive;
     private bool paused;
     private bool rewardAdPending;
@@ -41,6 +42,10 @@ public class LevelUIManager : MonoBehaviour
     [SerializeField] private TMP_Text failedTitle;
     [SerializeField] private TMP_Text failedDetails;
     [SerializeField] private Image[] resultStars;
+    [SerializeField] private GameObject hintAdPanel;
+    [SerializeField] private TMP_Text hintAdMessage;
+    [SerializeField] private Button hintAdYesButton;
+    [SerializeField] private Button hintAdNoButton;
 
     private void OnEnable()
     {
@@ -63,7 +68,9 @@ public class LevelUIManager : MonoBehaviour
         }
         if (timerText != null)
             timerTextInitialScale = timerText.transform.localScale;
+        if (hintAdPanel != null) hintAdPanel.SetActive(false);
         BindSceneButtons();
+        BindHintAdPanel();
     }
 
     public void InitializeLevel(int level, int cubeCount, float timeLimit, Action loadNextLevel, Action restartLevel)
@@ -157,18 +164,7 @@ public class LevelUIManager : MonoBehaviour
             return;
         if (GameManager.Hints <= 0)
         {
-            actionButton.transform.DOKill();
-            actionButton.transform.DOPunchScale(Vector3.one * 0.2f, 0.35f, 6, 0.7f).SetUpdate(true);
-            AudioManager.Instance?.PlaySFX("Wrong");
-            FSAdsManager ads = FSAdsManager.Instance;
-            if (rewardAdPending || ads == null || !ads.IsRewardedAdReady) return;
-            rewardAdPending = true;
-            ads.ShowRewardedAd(() =>
-            {
-                GameManager.AddHints(1);
-                UpdateHintCountUI();
-                UseHint();
-            }, () => rewardAdPending = false);
+            ShowHintAdPanel();
             return;
         }
         AudioManager.Instance?.PlaySFX("pop-6");
@@ -201,9 +197,80 @@ public class LevelUIManager : MonoBehaviour
         if (selected == null)
             return;
 
+        if (lastHintedCube != null && lastHintedCube != selected)
+            lastHintedCube.StopHintBounce();
         GameManager.TryUseHint();
         UpdateHintCountUI();
         selected.ShowHint(1.8f);
+        lastHintedCube = selected;
+    }
+
+    private void BindHintAdPanel()
+    {
+        if (hintAdYesButton != null)
+        {
+            hintAdYesButton.onClick.RemoveAllListeners();
+            hintAdYesButton.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); ConfirmHintRewardAd(); });
+        }
+        if (hintAdNoButton != null)
+        {
+            hintAdNoButton.onClick.RemoveAllListeners();
+            hintAdNoButton.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); CloseHintAdPanel(); });
+        }
+    }
+    private void ShowHintAdPanel()
+    {
+        if (hintAdPanel == null || hintAdYesButton == null || hintAdNoButton == null) return;
+        AudioManager.Instance?.PlaySFX("Wrong");
+        if (hintAdMessage != null) hintAdMessage.text = "WATCH AN AD TO GET 1 HINT?";
+        if (hintAdYesButton != null) hintAdYesButton.interactable = true;
+        if (hintAdNoButton != null) hintAdNoButton.interactable = true;
+        paused = true;
+        TabCube.SetInputLocked(true);
+        UpdateGameplayUIVisibility(false);
+        hintAdPanel.SetActive(true);
+        hintAdPanel.transform.SetAsLastSibling();
+    }
+
+    private void ConfirmHintRewardAd()
+    {
+        if (rewardAdPending) return;
+        FSAdsManager ads = FSAdsManager.Instance;
+        if (ads == null || !ads.IsRewardedAdReady)
+        {
+            if (hintAdMessage != null) hintAdMessage.text = "NO REWARDED AD IS AVAILABLE. TRY AGAIN LATER.";
+            return;
+        }
+
+        rewardAdPending = true;
+        hintAdYesButton.interactable = false;
+        hintAdNoButton.interactable = false;
+        ads.ShowRewardedAd(() =>
+        {
+            rewardAdPending = false;
+            CloseHintAdPanel();
+            GameManager.AddHints(1);
+            UpdateHintCountUI();
+            UseHint();
+        }, () =>
+        {
+            rewardAdPending = false;
+            if (hintAdPanel != null && hintAdPanel.activeSelf && hintAdYesButton != null && hintAdNoButton != null)
+            {
+                if (hintAdMessage != null) hintAdMessage.text = "AD NOT COMPLETED. TRY AGAIN?";
+                if (hintAdYesButton != null) hintAdYesButton.interactable = true;
+                if (hintAdNoButton != null) hintAdNoButton.interactable = true;
+            }
+        });
+    }
+
+    private void CloseHintAdPanel()
+    {
+        if (hintAdPanel != null) hintAdPanel.SetActive(false);
+        if (!levelActive) return;
+        paused = false;
+        TabCube.SetInputLocked(false);
+        UpdateGameplayUIVisibility(true);
     }
 
     private void HandleMoveAttempted(TabCube cube, bool blocked)
@@ -230,8 +297,8 @@ public class LevelUIManager : MonoBehaviour
             SaveBestStars(completionStarsEarned);
             int coinReward = GameManager.AwardCoinsForLevelStars(completionStarsEarned);
             AudioManager.Instance?.PlaySFX("StarBlast");
-            if (resultTitle != null) resultTitle.text = "LEVEL COMPLETE!";
-            if (resultDetails != null) resultDetails.text = $"LEVEL {currentLevel:00}\nTIME: {FormatTime(Mathf.CeilToInt(timeRemaining))}";
+            if (resultTitle != null) resultTitle.text = $"LEVEL {currentLevel:00}";
+            if (resultDetails != null) resultDetails.text = $"Time: {FormatTime(Mathf.CeilToInt(timeRemaining))}";
             if (coinRewardText != null) coinRewardText.text = $"+{coinReward}";
             UpdateGameplayUIVisibility(false);
             if (failedPanel != null) failedPanel.SetActive(false);

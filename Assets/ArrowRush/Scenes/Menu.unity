@@ -3734,6 +3734,8 @@ MonoBehaviour:
   modalTitle: {fileID: 1931596560}
   modalBody: {fileID: 0}
   levelsPage: {fileID: 27929108}
+  levelsContent: {fileID: 212047529}
+  levelButtonPrefab: {fileID: 6820075985574565946, guid: 4322670e12df2114a88857e355817aba, type: 3}
   settingsPage: {fileID: 3913348687933262487}
   shopPage: {fileID: 5568716295404895118}
   progressText: {fileID: 1876914422}

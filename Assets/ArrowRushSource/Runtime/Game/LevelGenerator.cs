@@ -24,6 +24,8 @@ public class LevelGenerator : MonoBehaviour
     [Min(1)] [SerializeField] private int startingCubeCount = 2;
     [Min(1)] [SerializeField] private int cubesAddedPerLevel = 2;
     [Min(1)] [SerializeField] private int difficultyCapLevel = 2000;
+    [Header("Cube Movement")]
+    [Min(0.1f)] [SerializeField] private float cubeSlideSpeed = 8f;
     [Header("Level Timer")]
     [Min(1f)] [SerializeField] private float baseLevelTime = 30f;
     [Min(0f)] [SerializeField] private float timePerSqrtCube = 5f;
@@ -126,6 +128,7 @@ public class LevelGenerator : MonoBehaviour
                 int levelDirectionOffset = i + (Mathf.Max(1, levelNumber) - 1) * 5;
                 Vector3Int outwardDirection = FindCubeExitDirection(cells[i], structureSize, levelDirectionOffset);
                 tabCube.SetDirection(outwardDirection);
+                tabCube.SetMoveSpeed(cubeSlideSpeed);
                 generatedCubes.Add(tabCube);
             }
         }

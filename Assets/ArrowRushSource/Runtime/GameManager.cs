@@ -51,7 +51,8 @@ public static class GameManager
 
     public static int AwardCoinsForLevelStars(int stars)
     {
-        int reward = 25 + Mathf.Clamp(stars, 1, 3) * 15;
+        int clampedStars = Mathf.Clamp(stars, 1, 3);
+        int reward = clampedStars == 1 ? 1 : clampedStars == 2 ? 3 : 5;
         PlayerPrefs.SetInt(CoinsKey, Coins + reward);
         PlayerPrefs.Save();
         return reward;
