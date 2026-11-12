@@ -7,7 +7,7 @@ public static class GameManager
     private const string HintsKey = "ArrowRush.Hints";
     private const string HintButtonEnabledKey = "ArrowRush.HintsEnabled";
 
-    public static int Coins => Mathf.Max(0, PlayerPrefs.GetInt(CoinsKey, 0));
+    public static int Coins => Mathf.Max(0, PlayerPrefs.GetInt(CoinsKey, 50));
     public static int Hints => Mathf.Max(0, PlayerPrefs.GetInt(HintsKey, 3));
     public static bool HintButtonEnabled => PlayerPrefs.GetInt(HintButtonEnabledKey, 1) == 1;
 

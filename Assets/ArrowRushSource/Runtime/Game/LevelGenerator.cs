@@ -23,7 +23,7 @@ public class LevelGenerator : MonoBehaviour
     [Header("Level Difficulty")]
     [Min(1)] [SerializeField] private int startingCubeCount = 2;
     [Min(1)] [SerializeField] private int cubesAddedPerLevel = 2;
-    [Min(1)] [SerializeField] private int difficultyCapLevel = 2000;
+    [Min(1)] [SerializeField] private int difficultyCapLevel = 150;
     [Header("Cube Movement")]
     [Min(0.1f)] [SerializeField] private float cubeSlideSpeed = 8f;
     [Header("Level Timer")]
@@ -42,7 +42,7 @@ public class LevelGenerator : MonoBehaviour
 
     private void Start()
     {
-        levelNumber = Mathf.Clamp(PlayerPrefs.GetInt("ArrowRush.SelectedLevel", levelNumber), 1, Mathf.Max(1, difficultyCapLevel));
+        levelNumber = Mathf.Max(1, PlayerPrefs.GetInt("ArrowRush.SelectedLevel", levelNumber));
         GenerateLevel();
     }
 

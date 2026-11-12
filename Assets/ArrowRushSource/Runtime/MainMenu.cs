@@ -182,7 +182,8 @@ public sealed class MainMenu : MonoBehaviour
     }
     private void EnsureLevelButtons()
     {
-        int levelCount = Mathf.Min(2000, Mathf.Max(100, highestUnlocked + 20));
+        int completedSet = (Mathf.Max(1, highestUnlocked) - 1) / 100;
+        int levelCount = (completedSet + 1) * 100;
         for (int level = 1; level <= levelCount; level++)
         {
             string objectName = "Level " + level;
