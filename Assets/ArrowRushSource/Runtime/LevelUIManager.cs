@@ -6,6 +6,7 @@ using DG.Tweening;
 using System.Collections;
 using TMPro;
 using FuncrateStudio;
+using System.Reflection;
 
 /// <summary>Runtime HUD for the arrow puzzle: level, timer, and hints.</summary>
 public class LevelUIManager : MonoBehaviour
@@ -30,10 +31,12 @@ public class LevelUIManager : MonoBehaviour
     private bool levelActive;
     private bool paused;
     private bool rewardAdPending;
+    private bool failedByLives;
     private float levelTimeLimit;
     private int completionStarsEarned;
     private int lastCountdownSecond = -1;
     private Vector3 timerTextInitialScale;
+    private Vector3 levelTextInitialScale;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject resultPanel;
     [SerializeField] private GameObject failedPanel;
@@ -68,6 +71,8 @@ public class LevelUIManager : MonoBehaviour
         }
         if (timerText != null)
             timerTextInitialScale = timerText.transform.localScale;
+        if (levelText != null)
+            levelTextInitialScale = levelText.transform.localScale;
         if (hintAdPanel != null) hintAdPanel.SetActive(false);
         BindSceneButtons();
         BindHintAdPanel();
@@ -75,6 +80,7 @@ public class LevelUIManager : MonoBehaviour
 
     public void InitializeLevel(int level, int cubeCount, float timeLimit, Action loadNextLevel, Action restartLevel)
     {
+        GameManager.ResetLivesForLevel();
         moveCount = 0;
         currentLevel = Mathf.Max(1, level);
         cubesRemaining = cubeCount;
@@ -93,7 +99,7 @@ public class LevelUIManager : MonoBehaviour
         loadNextLevelAction = loadNextLevel;
         restartLevelAction = restartLevel;
         TabCube.SetInputLocked(false);
-        if (levelText != null) levelText.text = $"LEVEL  {currentLevel}";
+        if (levelText != null) levelText.text = $"LEVEL  {currentLevel}   ♥ {GameManager.Lives}";
         UpdateTimerUI();
         if (actionButton != null)
         {
@@ -113,7 +119,7 @@ public class LevelUIManager : MonoBehaviour
         timeRemaining = Mathf.Max(0f, timeRemaining - Time.deltaTime);
         UpdateTimerUI();
         if (timeRemaining <= 0f)
-            HandleLevelFailed();
+            HandleLevelFailed(false);
     }
 
     private void BindSceneButtons()
@@ -129,15 +135,17 @@ public class LevelUIManager : MonoBehaviour
             else if (button.gameObject.name == "RESTART Button")
                 button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); restartLevelAction?.Invoke(); });
             else if (button.gameObject.name == "HOME Button")
-                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); SceneManager.LoadScene("Menu"); });
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); ReturnHomeAfterAd(); });
             else if (button.gameObject.name == "HomeBtn" || button.gameObject.name == "RETRY Button")
-                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); SceneManager.LoadScene("Menu"); });
+                button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); ReturnHomeAfterAd(); });
             else if (button.gameObject.name == "NEXT LEVEL Button")
                 button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); LoadNextLevel(); });
             else if (button.gameObject.name == "RetryBtn")
                 button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); RestartLevel(); });
             else if (button.gameObject.name == "WatchAd")
+            {
                 button.onClick.AddListener(() => { AudioManager.Instance?.PlaySFX("click"); ResumeWithCoinsOrAd(); });
+            }
         }
     }
 
@@ -275,13 +283,37 @@ public class LevelUIManager : MonoBehaviour
 
     private void HandleMoveAttempted(TabCube cube, bool blocked)
     {
-        AudioManager.Instance?.PlaySFX(blocked ? "Wrong" : "click");
+        AudioManager.Instance?.PlaySFX(blocked ? "Wrong" : "Slide");
         moveCount++;
+        if (!blocked || !levelActive) return;
+
+        if (GameManager.TryUseLife())
+        {
+            RefreshLivesDisplay(true);
+            if (GameManager.Lives <= 0) HandleLevelFailed(true);
+        }
+        else
+        {
+            HandleLevelFailed(true);
+        }
+    }
+
+    private void RefreshLivesDisplay(bool animate)
+    {
+        if (levelText == null) return;
+        levelText.text = $"LEVEL  {currentLevel}   ♥ {GameManager.Lives}";
+        if (!animate) return;
+
+        Transform heartDisplay = levelText.transform;
+        heartDisplay.DOKill();
+        heartDisplay.localScale = levelTextInitialScale;
+        heartDisplay.DOScale(levelTextInitialScale * 1.2f, 0.14f)
+            .SetEase(Ease.OutBack)
+            .OnComplete(() => heartDisplay.DOScale(levelTextInitialScale, 0.18f).SetEase(Ease.OutSine));
     }
 
     private void HandleCubeExited(TabCube cube)
     {
-        AudioManager.Instance?.PlaySFX("Slide");
         cubesRemaining = Mathf.Max(0, cubesRemaining - 1);
         if (cubesRemaining == 0)
         {
@@ -307,20 +339,21 @@ public class LevelUIManager : MonoBehaviour
         }
     }
 
-    private void HandleLevelFailed()
+    private void HandleLevelFailed(bool outOfLives)
     {
         if (!levelActive)
             return;
 
+        failedByLives = outOfLives;
         levelActive = false;
         paused = false;
         if (pausePanel != null) pausePanel.SetActive(false);
         TabCube.SetInputLocked(true);
-        timeRemaining = 0f;
+        if (!outOfLives) timeRemaining = 0f;
         UpdateTimerUI();
         if (resultPanel != null) resultPanel.SetActive(false);
-        if (failedTitle != null) failedTitle.text = "LEVEL FAILED";
-        if (failedDetails != null) failedDetails.text = $"LEVEL {currentLevel:00}\nHINTS: {GameManager.Hints}\nTIME: {FormatTime(Mathf.CeilToInt(timeRemaining))}";
+        if (failedTitle != null) failedTitle.text = $"LEVEL {currentLevel:00}";
+        if (failedDetails != null) failedDetails.text = $"TIME: {FormatTime(Mathf.CeilToInt(timeRemaining))}";
         UpdateGameplayUIVisibility(false);
         if (failedPanel != null) failedPanel.SetActive(true);
         AudioManager.Instance?.PlaySFX("Wrong");
@@ -334,9 +367,9 @@ public class LevelUIManager : MonoBehaviour
     private void ResumeWithCoinsOrAd()
     {
         if (!failedPanel.activeSelf || rewardAdPending) return;
-        if (GameManager.Coins >= 50)
+        if (GameManager.Coins >= 100)
         {
-            if (GameManager.TrySpendCoins(50)) ResumeAfterTime();
+            if (GameManager.TrySpendCoins(100)) ContinueAfterFailure();
             return;
         }
 
@@ -348,18 +381,44 @@ public class LevelUIManager : MonoBehaviour
         }
 
         rewardAdPending = true;
-        ads.ShowRewardedAd(ResumeAfterTime, () => rewardAdPending = false);
+        ads.ShowRewardedAd(ContinueAfterFailure, () => rewardAdPending = false);
+    }
+
+    private void ContinueAfterFailure()
+    {
+        rewardAdPending = false;
+        if (failedByLives) GameManager.AddLife();
+        else timeRemaining = 10f;
+        if (levelText != null) levelText.text = $"LEVEL  {currentLevel}   ♥ {GameManager.Lives}";
+        ResumeAfterTime();
     }
 
     private void ResumeAfterTime()
     {
-        timeRemaining = 10f;
         levelActive = true;
         paused = false;
         if (failedPanel != null) failedPanel.SetActive(false);
         TabCube.SetInputLocked(false);
         UpdateGameplayUIVisibility(true);
         UpdateTimerUI();
+    }
+
+    private void ReturnHomeAfterAd()
+    {
+        if (rewardAdPending) return;
+        FSAdsManager ads = FSAdsManager.Instance;
+        if (ads != null)
+        {
+            MethodInfo method = ads.GetType().GetMethod("ShowInterstitialAd", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { typeof(Action) }, null)
+                ?? ads.GetType().GetMethod("ShowInterstitial", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { typeof(Action) }, null);
+            if (method != null)
+            {
+                rewardAdPending = true;
+                method.Invoke(ads, new object[] { (Action)(() => { rewardAdPending = false; SceneManager.LoadScene("Menu"); }) });
+                return;
+            }
+        }
+        SceneManager.LoadScene("Menu");
     }
 
     private void UpdateGameplayUIVisibility(bool visible)
@@ -398,7 +457,11 @@ public class LevelUIManager : MonoBehaviour
         if (buttonLabel != null)
             buttonLabel.text = GameManager.Hints.ToString();
         if (actionButton != null)
-            actionButton.interactable = GameManager.HintButtonEnabled;
+        {
+            bool hintsEnabled = GameManager.HintButtonEnabled;
+            actionButton.gameObject.SetActive(hintsEnabled);
+            actionButton.interactable = hintsEnabled;
+        }
     }
 
     private void UpdateTimerUI()

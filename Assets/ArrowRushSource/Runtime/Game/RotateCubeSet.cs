@@ -36,7 +36,7 @@ public class RotateCubeSet : MonoBehaviour
         Vector3 delta = pointerPosition - previousPointerPosition;
         previousPointerPosition = pointerPosition;
 
-        puzzleParent.Rotate(Vector3.up, delta.x * rotationSensitivity, Space.World);
+        puzzleParent.Rotate(Vector3.up, -delta.x * rotationSensitivity, Space.World);
     }
 
     private bool PointerIsOverCube()

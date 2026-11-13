@@ -1,11 +1,7 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
-using UnityEngine;
 using TMPro;
+using UnityEngine;
 using UnityEngine.UI;
 using FuncrateStudio;
-
 
 public enum CoinPack
 {
@@ -14,89 +10,115 @@ public enum CoinPack
     Pack3 = 400
 }
 
-public class ShopManager : MonoBehaviour
+/// <summary>Handles the hint and rewarded coin purchases in the menu shop.</summary>
+public sealed class ShopManager : MonoBehaviour
 {
-
     [Header("Coins")]
     [SerializeField] private TMP_Text coinsText;
+    [SerializeField] private TMP_Text statusText;
 
     [Header("Hint Buttons")]
     [SerializeField] private Button hintButton1;
     [SerializeField] private Button hintButton2;
     [SerializeField] private Button hintButton3;
 
-
-    [Header("Coins Buttons")]
+    [Header("Coin Buttons")]
     [SerializeField] private Button coinsButton1;
     [SerializeField] private Button coinsButton2;
     [SerializeField] private Button coinsButton3;
 
-    public CoinPack selectedCoinPack;
+    [Header("Hint prices")]
+    [SerializeField] private int hintPrice1 = 50;
+    [SerializeField] private int hintPrice5 = 200;
+    [SerializeField] private int hintPrice10 = 350;
 
-    // Start is called before the first frame update
-    void Start()
+    private bool rewardPending;
+
+    private void OnEnable()
     {
-        coinsText.text = GameManager.Coins.ToString();
+        Bind(hintButton1, () => BuyHints(1, hintPrice1));
+        Bind(hintButton2, () => BuyHints(5, hintPrice5));
+        Bind(hintButton3, () => BuyHints(10, hintPrice10));
+        Bind(coinsButton1, () => BuyCoins(CoinPack.Pack1));
+        Bind(coinsButton2, () => BuyCoins(CoinPack.Pack2));
+        Bind(coinsButton3, () => BuyCoins(CoinPack.Pack3));
+        Refresh();
     }
 
-
-    void OnEnable()
+    private void OnDisable()
     {
-        //Add listeners to hint buttons
-        hintButton1.onClick.AddListener(() => AddHints(1));
-        hintButton2.onClick.AddListener(() => AddHints(5));
-        hintButton3.onClick.AddListener(() => AddHints(10));
-
-        //Add listeners to coin buttons
-        coinsButton1.onClick.AddListener(() => AddCoins(CoinPack.Pack1));
-        coinsButton2.onClick.AddListener(() => AddCoins(CoinPack.Pack2));
-        coinsButton3.onClick.AddListener(() => AddCoins(CoinPack.Pack3));
+        Unbind(hintButton1); Unbind(hintButton2); Unbind(hintButton3);
+        Unbind(coinsButton1); Unbind(coinsButton2); Unbind(coinsButton3);
     }
 
-
-    private void AddHints(int hintsToAdd)
+    private static void Bind(Button button, UnityEngine.Events.UnityAction action)
     {
-        if (GameManager.Coins >= hintsToAdd)
-        {
-
-            coinsText.text = GameManager.Coins.ToString();
-        }
-        else // Not enough coins
-        {
-
-        }
+        if (button == null) return;
+        button.onClick.RemoveListener(action);
+        button.onClick.AddListener(action);
     }
 
-
-    private void AddCoins(CoinPack coinPack)
+    private static void Unbind(Button button)
     {
-        if (coinPack == CoinPack.Pack1) // Show rewarded ad for Pack1
-        {
-            PlayRewardedAdForMultipleTimes(coinPack, 1);
-        }
-        else if (coinPack == CoinPack.Pack2) // Show two rewarded ad for Pack2
-        {
-            PlayRewardedAdForMultipleTimes(coinPack, 2);
-        }
-        else if (coinPack == CoinPack.Pack3) // Show three rewarded ad for Pack3
-        {
-            PlayRewardedAdForMultipleTimes(coinPack, 3);
-        }
-
-        coinsText.text = GameManager.Coins.ToString();
+        if (button != null) button.onClick.RemoveAllListeners();
     }
 
-    private void PlayRewardedAdForMultipleTimes(CoinPack coinPack, int times)
+    private void BuyHints(int amount, int price)
     {
-        if (times <= 0)
+        if (!GameManager.TryBuyHints(amount, price))
         {
+            SetStatus("NOT ENOUGH COINS");
+            return;
+        }
+        SetStatus($"ADDED {amount} HINT{(amount == 1 ? "" : "S")}");
+        Refresh();
+    }
+
+    private void BuyCoins(CoinPack pack)
+    {
+        if (rewardPending) return;
+        FSAdsManager ads = FSAdsManager.Instance;
+        if (ads == null || !ads.IsRewardedAdReady)
+        {
+            SetStatus("NO REWARDED AD IS AVAILABLE. TRY AGAIN LATER.");
             return;
         }
 
-        FSAdsManager.Instance.ShowRewardedAd(() =>
+        rewardPending = true;
+        SetButtonsInteractable(false);
+        int amount = (int)pack;
+        ads.ShowRewardedAd(() =>
         {
-            PlayRewardedAdForMultipleTimes(coinPack, times - 1);
-            coinsText.text = GameManager.Coins.ToString();
+            rewardPending = false;
+            GameManager.AddCoins(amount);
+            SetStatus($"ADDED {amount} COINS");
+            Refresh();
+        }, () =>
+        {
+            rewardPending = false;
+            SetButtonsInteractable(true);
+            SetStatus("AD NOT COMPLETED. TRY AGAIN?");
         });
+    }
+
+    private void Refresh()
+    {
+        if (coinsText != null) coinsText.text = GameManager.Coins.ToString();
+        SetButtonsInteractable(!rewardPending);
+    }
+
+    private void SetButtonsInteractable(bool interactable)
+    {
+        if (hintButton1 != null) hintButton1.interactable = interactable;
+        if (hintButton2 != null) hintButton2.interactable = interactable;
+        if (hintButton3 != null) hintButton3.interactable = interactable;
+        if (coinsButton1 != null) coinsButton1.interactable = interactable;
+        if (coinsButton2 != null) coinsButton2.interactable = interactable;
+        if (coinsButton3 != null) coinsButton3.interactable = interactable;
+    }
+
+    private void SetStatus(string message)
+    {
+        if (statusText != null) statusText.text = message;
     }
 }

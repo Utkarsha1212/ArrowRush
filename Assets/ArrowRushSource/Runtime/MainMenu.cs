@@ -55,10 +55,11 @@ public sealed class MainMenu : MonoBehaviour
                 case "Toggle Music": action = ToggleMusic; break;
                 case "Toggle SFX": action = ToggleSfx; break;
                 case "Toggle Hints": action = ToggleHints; break;
-                case "BUY 1 HINT": action = () => BuyHints(1, 50); break;
-                case "BUY 5 HINTS": action = () => BuyHints(5, 200); break;
-                case "BUY 10 HINTS": action = () => BuyHints(10, 350); break;
-                case "WATCH AD FOR COINS": action = WatchAdForCoins; break;
+                // ShopManager owns the shop purchase buttons and their listeners.
+                case "BUY 1 HINT":
+                case "BUY 5 HINTS":
+                case "BUY 10 HINTS":
+                case "WATCH AD FOR COINS": continue;
                 default:
                     if (button.gameObject.name.StartsWith("Level ") && int.TryParse(button.gameObject.name.Substring(6), out int level)) action = () => SelectLevel(level);
                     break;
@@ -147,15 +148,6 @@ public sealed class MainMenu : MonoBehaviour
     {
         SetButtonLabel("BUY 1 HINT", "1 HINT  •  50 COINS"); SetButtonLabel("BUY 5 HINTS", "5 HINTS  •  200 COINS"); SetButtonLabel("BUY 10 HINTS", "10 HINTS  •  350 COINS");
         if (modalBody != null) { modalBody.text = $"COINS  {GameManager.Coins}     HINTS  {GameManager.Hints}\nEarn coins by clearing levels or watching a rewarded ad."; modalBody.gameObject.SetActive(true); }
-    }
-    private void BuyHints(int amount, int price)
-    {
-        if (!GameManager.TryBuyHints(amount, price)) { if (modalBody != null) modalBody.text = $"NOT ENOUGH COINS\nCOINS  {GameManager.Coins}     HINTS  {GameManager.Hints}"; return; }
-        RefreshShop();
-    }
-    private void WatchAdForCoins()
-    {
-        if (modalBody != null) modalBody.text = "REWARDED ADS ARE NOT CONFIGURED YET. COINS ARE ADDED ONLY AFTER AN AD IS COMPLETED.";
     }
     private void RefreshLevelButtons()
     {

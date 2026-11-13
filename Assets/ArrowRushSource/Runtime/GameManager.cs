@@ -6,9 +6,12 @@ public static class GameManager
     private const string CoinsKey = "ArrowRush.Coins";
     private const string HintsKey = "ArrowRush.Hints";
     private const string HintButtonEnabledKey = "ArrowRush.HintsEnabled";
+    private const string LivesKey = "ArrowRush.Lives";
+    public const int StartingLivesPerLevel = 3;
 
     public static int Coins => Mathf.Max(0, PlayerPrefs.GetInt(CoinsKey, 50));
     public static int Hints => Mathf.Max(0, PlayerPrefs.GetInt(HintsKey, 3));
+    public static int Lives => Mathf.Max(0, PlayerPrefs.GetInt(LivesKey, 0));
     public static bool HintButtonEnabled => PlayerPrefs.GetInt(HintButtonEnabledKey, 1) == 1;
 
     public static void SetHintButtonEnabled(bool enabled)
@@ -21,6 +24,34 @@ public static class GameManager
     {
         if (amount <= 0) return;
         PlayerPrefs.SetInt(HintsKey, Hints + amount);
+        PlayerPrefs.Save();
+    }
+
+    public static void AddCoins(int amount)
+    {
+        if (amount <= 0) return;
+        PlayerPrefs.SetInt(CoinsKey, Coins + amount);
+        PlayerPrefs.Save();
+    }
+
+    public static void AddLife(int amount = 1)
+    {
+        if (amount <= 0) return;
+        PlayerPrefs.SetInt(LivesKey, Lives + amount);
+        PlayerPrefs.Save();
+    }
+
+    public static bool TryUseLife()
+    {
+        if (Lives <= 0) return false;
+        PlayerPrefs.SetInt(LivesKey, Lives - 1);
+        PlayerPrefs.Save();
+        return true;
+    }
+
+    public static void ResetLivesForLevel()
+    {
+        PlayerPrefs.SetInt(LivesKey, StartingLivesPerLevel);
         PlayerPrefs.Save();
     }
 
