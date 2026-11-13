@@ -1164,10 +1164,62 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9ed1032d39203b40815064c69267cce, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  bannerAdUnitId: 
-  interstitialAdUnitId: 
-  rewardedAdUnitId: ca-app-pub-4174143128673261/8483389938
+  bannerAdUnitId: ca-app-pub-4174143128673261/6128569198
+  interstitialAdUnitId: ca-app-pub-4174143128673261/2273918811
+  rewardedAdUnitId: ca-app-pub-4174143128673261/2768742832
   noInternetPanel: {fileID: 1156647388}
+--- !u!1 &464571709
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 464571711}
+  - component: {fileID: 464571710}
+  m_Layer: 0
+  m_Name: ShopManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &464571710
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 464571709}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3560c77bc4f165f44b5258cb8f869267, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  coinsText: {fileID: 7621555572788297007}
+  hintButton1: {fileID: 8626208961308769014}
+  hintButton2: {fileID: 4843216354900890919}
+  hintButton3: {fileID: 3471544282290731449}
+  coinsButton1: {fileID: 6697128269628634582}
+  coinsButton2: {fileID: 66875820741502517}
+  coinsButton3: {fileID: 1368119424989439103}
+  selectedCoinPack: 0
+--- !u!4 &464571711
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 464571709}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &484713731
 GameObject:
   m_ObjectHideFlags: 0
@@ -1719,11 +1771,11 @@ AudioSource:
   m_Enabled: 1
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
-  m_audioClip: {fileID: 0}
+  m_audioClip: {fileID: 8300000, guid: b06243834a3641e4cbbfd0b906725f93, type: 3}
   m_PlayOnAwake: 1
-  m_Volume: 1
+  m_Volume: 0.6
   m_Pitch: 1
-  Loop: 0
+  Loop: 1
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
@@ -3739,6 +3791,7 @@ MonoBehaviour:
   settingsPage: {fileID: 3913348687933262487}
   shopPage: {fileID: 5568716295404895118}
   progressText: {fileID: 1876914422}
+  coinsText: {fileID: 7621555572788297007}
 --- !u!4 &2087326088
 Transform:
   m_ObjectHideFlags: 0
@@ -7050,7 +7103,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 8875650280620319910}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 2087326086}
+        m_TargetAssemblyTypeName: 
+        m_MethodName: 
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &3480741672251954658
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7718,7 +7783,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 100 Coins
+  m_text: 120 Coins
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: d70d41b15f7b52544848a0b474f04543, type: 2}
   m_sharedMaterial: {fileID: -2945388977229075123, guid: d70d41b15f7b52544848a0b474f04543, type: 2}
@@ -8220,7 +8285,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2507723571720134332}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 2087326086}
+        m_TargetAssemblyTypeName: 
+        m_MethodName: 
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &4856117581608703679
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11411,7 +11488,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 200 Coins
+  m_text: 400 Coins
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: d70d41b15f7b52544848a0b474f04543, type: 2}
   m_sharedMaterial: {fileID: -2945388977229075123, guid: d70d41b15f7b52544848a0b474f04543, type: 2}
@@ -11739,7 +11816,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 10 Coins
+  m_text: 40 Coins
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: d70d41b15f7b52544848a0b474f04543, type: 2}
   m_sharedMaterial: {fileID: -2945388977229075123, guid: d70d41b15f7b52544848a0b474f04543, type: 2}
@@ -12014,7 +12091,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 7056793124717375437}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 2087326086}
+        m_TargetAssemblyTypeName: 
+        m_MethodName: 
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &8632753666730242120
 GameObject:
   m_ObjectHideFlags: 0
@@ -12622,3 +12711,4 @@ SceneRoots:
   - {fileID: 856793690}
   - {fileID: 390348037}
   - {fileID: 493616873}
+  - {fileID: 464571711}

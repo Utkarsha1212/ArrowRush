@@ -16,6 +16,8 @@ public sealed class MainMenu : MonoBehaviour
     [SerializeField] private GameObject settingsPage;
     [SerializeField] private GameObject shopPage;
     [SerializeField] private TMP_Text progressText;
+
+    [SerializeField] private TMP_Text coinsText;
     private int chosenLevel;
     private int highestUnlocked;
 
@@ -25,6 +27,11 @@ public sealed class MainMenu : MonoBehaviour
         highestUnlocked = Mathf.Max(1, PlayerPrefs.GetInt("ArrowRush.HighestUnlockedLevel", 1));
         chosenLevel = Mathf.Clamp(PlayerPrefs.GetInt("ArrowRush.SelectedLevel", highestUnlocked), 1, highestUnlocked);
         BindSceneButtons(); BindSettingsControls(); UpdateProgressLabel();
+    }
+
+    void Start()
+    {
+        coinsText.text = GameManager.Coins.ToString();
     }
     private void OpenLevels() { if (modalTitle != null) modalTitle.text = "SELECT LEVEL"; if (modalBody != null) modalBody.gameObject.SetActive(false); RefreshLevelButtons(); ShowPage(levelsPage); }
     private void OpenSettings() { if (modalTitle != null) modalTitle.text = "SETTINGS"; if (modalBody != null) modalBody.gameObject.SetActive(false); RefreshSettings(); ShowPage(settingsPage); }
