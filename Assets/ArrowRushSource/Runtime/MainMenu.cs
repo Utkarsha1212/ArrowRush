@@ -49,6 +49,7 @@ public sealed class MainMenu : MonoBehaviour
                 case "LEVELS Button": action = OpenLevels; break;
                 case "SETTINGS Button": action = OpenSettings; break;
                 case "EXIT Button": action = Application.Quit; break;
+                case "Coins": action = OpenShop; break;
                 case "SHOP Button": action = OpenShop; break;
                 case "Close":
                 case "CLOSE Button": action = () => ShowPage(null); break;

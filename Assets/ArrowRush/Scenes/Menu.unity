@@ -1198,13 +1198,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   coinsText: {fileID: 7621555572788297007}
+  statusText: {fileID: 0}
   hintButton1: {fileID: 8626208961308769014}
   hintButton2: {fileID: 4843216354900890919}
   hintButton3: {fileID: 3471544282290731449}
   coinsButton1: {fileID: 6697128269628634582}
   coinsButton2: {fileID: 66875820741502517}
   coinsButton3: {fileID: 1368119424989439103}
-  selectedCoinPack: 0
+  hintPrice1: 50
+  hintPrice5: 200
+  hintPrice10: 350
 --- !u!4 &464571711
 Transform:
   m_ObjectHideFlags: 0
@@ -1909,6 +1912,7 @@ GameObject:
   - component: {fileID: 736705029}
   - component: {fileID: 736705028}
   - component: {fileID: 736705032}
+  - component: {fileID: 736705033}
   m_Layer: 0
   m_Name: Canvas
   m_TagString: Untagged
@@ -2018,6 +2022,18 @@ MonoBehaviour:
   right: 0
   top: 1
   bottom: 1
+--- !u!114 &736705033
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 736705027}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1cd7956ac27847f4680bc6b09c9c0bf0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &746396420
 GameObject:
   m_ObjectHideFlags: 0
